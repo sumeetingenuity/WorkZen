@@ -1,6 +1,6 @@
-# 🛡️ SecureAssist
+# 🛡️ WorkZen
 
-**SecureAssist** is a production-ready, multi-agent AI platform built on **Django 6**. It allows users to chat with a powerful Orchestrator that can research, write code, build entire sub-applications, and manage long-term semantic memory—all within a secure, audited, and hot-reloadable environment.
+**WorkZen** is a production-ready, multi-agent AI platform built on **Django 6**. It allows users to chat with a powerful Orchestrator that can research, write code, build entire sub-applications, and manage long-term semantic memory—all within a secure, audited, and hot-reloadable environment.
 
 ---
 
@@ -23,7 +23,7 @@
 *   **🎙️ Autonomous Voice Ingestion**: Speak to your agent via Telegram; it transcribes, extracts intent, and takes action automatically.
 *   **🔗 Knowledge Graph**: Semantic linking between documents, contacts, and tasks for a unified data web.
 *   **📋 Task & Finance Engine**: Proactive to-do management with reminders and a built-in financial ledger for budget tracking.
-*   **⚡ SecureAssist Task Engine (SATE)**: Decompose complex objectives into parallelized, dependency-aware task graphs for maximum efficiency.
+*   **⚡ WorkZen Task Engine (SATE)**: Decompose complex objectives into parallelized, dependency-aware task graphs for maximum efficiency.
 *   **📰 Intelligence Feeds**: Subscribe topics for the agent to monitor the web and alert you on significant updates.
 *   **🛡️ Security-First Architecture**: Features mandatory ORM logging for tools, secret injection at runtime, and comprehensive audit logs.
 *   **⚡ Zero-Downtime Hot-Reloading**: Inject new models and tools with **syntax protection** to prevent system instability.
@@ -83,18 +83,18 @@ For professional deployments on a VPS, use **Gunicorn** with Uvicorn workers. Ou
 
 1. **Start Gunicorn with a PID file**:
 ```bash
-gunicorn secureassist.asgi:application \
+gunicorn WorkZen.asgi:application \
     -k uvicorn.workers.UvicornWorker \
-    --pid /tmp/gunicorn_secureassist.pid \
+    --pid /tmp/gunicorn_WorkZen.pid \
     --bind 0.0.0.0:8000
 ```
 
-2. **Configuration**: SecureAssist will automatically detect `/tmp/gunicorn_secureassist.pid` and send a `SIGHUP` signal to trigger a graceful reload across all workers whenever the Developer Agent builds a new capability.
+2. **Configuration**: WorkZen will automatically detect `/tmp/gunicorn_WorkZen.pid` and send a `SIGHUP` signal to trigger a graceful reload across all workers whenever the Developer Agent builds a new capability.
 
 The API will be available at: `http://127.0.0.1:8000/api/v1/`
 The API Documentation (Swagger) is at: `http://127.0.0.1:8000/api/v1/docs`
 
-### 💬 Chatting with SecureAssist
+### 💬 Chatting with WorkZen
 Once both processes are running, simply open your Telegram Bot and start chatting. 
 - Say "I'm a lawyer" to build a legal assistant app.
 - Ask "What do we know about case X?" to use semantic memory.
@@ -106,7 +106,7 @@ Everything you do in the chat is securely logged and immediately functional.
 
 ## 📂 Workspace & Document Management
 
-SecureAssist is not just a chatbot; it's an intelligent workspace manager.
+WorkZen is not just a chatbot; it's an intelligent workspace manager.
 
 ### 🗄️ Automated Document Organization
 When you upload a document, your agent will:
@@ -124,7 +124,7 @@ The system includes a proactive "Sweeper" service that:
 
 ## 💻 Computer & Productivity Suite
 
-SecureAssist comes with a built-in "OS Integration" layer for essential professional tasks.
+WorkZen comes with a built-in "OS Integration" layer for essential professional tasks.
 
 ### 📧 Communications (Email)
 - **Send**: Send professional emails via SMTP with user approval.
@@ -147,7 +147,7 @@ This tool allows you to add/update secrets with masked input, keeping them separ
 ---
 
 ## 🏗️ Advanced Reliability & Git
-SecureAssist ensures your development process is robust and reversible.
+WorkZen ensures your development process is robust and reversible.
 
 ### 🔄 Git Versioning
 - **Automated Checkpoints**: The system commits changes before and after every generation.
@@ -165,7 +165,7 @@ The **Process Supervisor** in `run.py` monitors system health:
 
 ## 🚀 Advanced OS & Intelligence
 
-SecureAssist acts as a proactive operating system for your professional life.
+WorkZen acts as a proactive operating system for your professional life.
 
 ### 🎙️ Voice-to-Action
 Send a voice note to the Telegram bot. The system will:
@@ -174,7 +174,7 @@ Send a voice note to the Telegram bot. The system will:
 3. Execute the corresponding tool immediately.
 
 ### 🔗 Knowledge Graph
-Everything in SecureAssist is connected. You can link a **Document** to a **Contact**, or a **Task** to a **Project**.
+Everything in WorkZen is connected. You can link a **Document** to a **Contact**, or a **Task** to a **Project**.
 - *"Link this contract to the Acme Corp contact."*
 - *"Show me all tasks related to Project Alpha."*
 
@@ -183,7 +183,7 @@ The agent doesn't just wait for you.
 - It tracks a global to-do list with priorities and due dates.
 - It proactively suggests tasks during your **Daily Briefing**.
 
-### ⚡ SecureAssist Task Engine (SATE)
+### ⚡ WorkZen Task Engine (SATE)
 For heavy-duty workflows, use the **Parallel Execution Engine**:
 - **DAG Execution**: Breaks down "Research X then Build Y" into a graph of sub-tasks.
 - **Parallelism**: Runs independent tasks (e.g., researching 3 competitors) simultaneously.
@@ -198,31 +198,31 @@ Monitor the web for topics you care about.
 
 ## 🔌 Connectivity & Extensions
 
-SecureAssist is designed to play well with other tools and services.
+WorkZen is designed to play well with other tools and services.
 
 ### 🔌 Model Context Protocol (MCP) Server
-SecureAssist acts as a proactive MCP server, exposing its tools and context to external AI clients.
+WorkZen acts as a proactive MCP server, exposing its tools and context to external AI clients.
 - **API Endpoint**: `http://localhost:8000/api/v1/mcp/`
 - **Capabilities**: List tools, retrieve schemas, and execute tools directly from Cursor, Claude Desktop, or other AI-powered IDEs.
 
 > [!TIP]
-> **Example Usecase**: Imagine you have a custom "Legal Research" app in SecureAssist. By connecting SecureAssist to **Cursor** via MCP, you can highlight code in Cursor and ask: *"Does this function align with the compliance guidelines in our SecureAssist legal database?"* Cursor will use the SecureAssist tool via MCP to fetch the answer.
+> **Example Usecase**: Imagine you have a custom "Legal Research" app in WorkZen. By connecting WorkZen to **Cursor** via MCP, you can highlight code in Cursor and ask: *"Does this function align with the compliance guidelines in our WorkZen legal database?"* Cursor will use the WorkZen tool via MCP to fetch the answer.
 
 ### 🔗 Webhooks & Automation
 You can register external HTTP endpoints to receive real-time updates from your agent.
 - **Events**: `tool_execution_success`, `tool_execution_failed`, and more.
-- **Security**: HMAC-SHA256 signatures are included in the `X-SecureAssist-Signature` header for verification.
+- **Security**: HMAC-SHA256 signatures are included in the `X-WorkZen-Signature` header for verification.
 - **Configuration**: Manage webhooks via the chat: *"Register a webhook to https://my-service.com/hooks"*
 
 ---
 
 ## 🔒 Security & Agent Safety
 
-SecureAssist is designed to prevent "Agent Rebellion" or accidental leakage of sensitive credentials.
+WorkZen is designed to prevent "Agent Rebellion" or accidental leakage of sensitive credentials.
 
 ### 🛡️ Hardened Secret Vault
-Unlike typical projects that store keys in a local `.env` file, SecureAssist uses an **Out-of-Workspace Vault**:
-- **Location**: `~/.secureassist/vault.json` (outside your project directory).
+Unlike typical projects that store keys in a local `.env` file, WorkZen uses an **Out-of-Workspace Vault**:
+- **Location**: `~/.WorkZen/vault.json` (outside your project directory).
 - **Isolation**: When an LLM agent or generated code scans your workspace, it will find **no sensitive keys**.
 - **Access**: Tools access secrets only via **Runtime Injection** (they are injected just for the function call and never stored in the agent's memory).
 
@@ -249,7 +249,7 @@ The Orchestrator includes a final safety net. Every response is scanned for know
 
 ## 🔮 Roadmap & Future Features
 
-SecureAssist is evolving rapidly. Here is what's coming next:
+WorkZen is evolving rapidly. Here is what's coming next:
 
 - **👥 Multi-User Collaboration**: Role-Based Access Control (RBAC) for teams sharing an agent.
 - **📱 Mobile Companion App**: Native Flutter/React Native app for on-the-go access.
