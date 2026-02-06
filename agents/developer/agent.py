@@ -8,8 +8,9 @@ from typing import Optional
 from pathlib import Path
 from django.conf import settings
 from agents.schemas import AppSpec, EntitySpec, ToolSpec
-from agents.developer.opencode_executor import OpenCodeExecutor, GenerationResult
+from agents.developer.opencode_executor import opencode_executor, GenerationResult
 from core.services.reloader import app_reloader
+from core.services.git_service import git_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,11 @@ class DeveloperAgent:
         """
         logger.info(f"Building app: {app_spec.name}")
         
+        # 1. Pre-build checkpoint
+        git_service.checkpoint(f"Pre-generation checkpoint for {app_spec.name}")
+        
         # Check if OpenCode is available
-        if not OpenCodeExecutor.is_available():
+        if not opencode_executor.is_available():
             return {
                 "success": False,
                 "error": "OpenCode CLI not installed",
@@ -53,7 +57,7 @@ class DeveloperAgent:
         prompt = self._generate_app_prompt(app_spec)
         
         # Execute OpenCode
-        result = await OpenCodeExecutor.generate_django_app(
+        result = await opencode_executor.generate_django_app(
             app_name=app_spec.name,
             app_spec=prompt,
             base_dir=self.base_dir,
@@ -61,10 +65,54 @@ class DeveloperAgent:
         )
         
         if not result.success:
+            app_dir = Path(self.base_dir) / "apps" / app_spec.name
+            if result.error and "tools.py" in result.error:
+                required_files = ["apps.py", "models.py", "admin.py"]
+                if all((app_dir / f).exists() for f in required_files):
+                    logger.warning(f"OpenCode missed tools.py for {app_spec.name}; generating fallback tools.")
+                    generated = await self._generate_tools_file(app_spec, app_dir)
+                    if generated:
+                        result.success = True
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Failed to generate fallback tools.py",
+                            "output": result.output
+                        }
+                else:
+                    return {
+                        "success": False,
+                        "error": result.error,
+                        "output": result.output
+                    }
+            else:
+                return {
+                    "success": False,
+                    "error": result.error,
+                    "output": result.output
+                }
+
+        # Ensure core files exist before registering app
+        app_dir = Path(self.base_dir) / "apps" / app_spec.name
+        required_files = ["apps.py", "models.py", "tools.py", "admin.py"]
+        missing_files = [f for f in required_files if not (app_dir / f).exists()]
+        if "tools.py" in missing_files:
+            logger.warning(f"tools.py missing for {app_spec.name}; generating fallback tools.")
+            generated = await self._generate_tools_file(app_spec, app_dir)
+            if generated:
+                missing_files = [f for f in required_files if not (app_dir / f).exists()]
+        else:
+            tools_path = app_dir / "tools.py"
+            if tools_path.exists():
+                try:
+                    compile(tools_path.read_text(), str(tools_path), "exec")
+                except SyntaxError:
+                    logger.warning(f"tools.py has syntax errors for {app_spec.name}; regenerating fallback tools.")
+                    await self._generate_tools_file(app_spec, app_dir)
+        if missing_files:
             return {
                 "success": False,
-                "error": result.error,
-                "output": result.output
+                "error": f"OpenCode did not create required files: {', '.join(missing_files)}"
             }
         
         # Update Django settings to include new app
@@ -76,18 +124,20 @@ class DeveloperAgent:
         # 3. Apply migrations and reload app
         logger.info(f"App files created. Triggering hot-reload for {app_spec.name}...")
         reload_success = await app_reloader.reload_app(app_spec.name)
-        
         if not reload_success:
-            return {
-                "success": False,
-                "error": "Files created but failed to hot-reload app."
-            }
+            logger.warning("Hot-reload failed; continuing with generation results.")
+        
+        # 4. Register tools from the new app
+        tools_registered = await self._register_tools(app_spec)
             
-        # 4. Self-Correction Loop (Phase 10)
+        # 5. Self-Correction Loop (Phase 10)
         validation_result = await self._validate_and_fix(app_spec, model=model)
         if not validation_result["success"]:
             return validation_result
         
+        # 6. Success Checkpoint
+        git_service.checkpoint(f"Successfully generated and validated {app_spec.name}")
+
         return {
             "success": True,
             "app_name": app_spec.name,
@@ -95,7 +145,7 @@ class DeveloperAgent:
             "files_created": result.files_created,
             "settings_updated": settings_updated,
             "migrations_run": migrations_result,
-            "tools_registered": len(app_spec.tools),
+            "tools_registered": tools_registered,
             "message": f"Successfully created and validated {app_spec.display_name}!"
         }
     
@@ -149,6 +199,12 @@ Description: {app_spec.description}
 6. NO ENV SCANNING: DO NOT search for or read `.env` files. Sensitive keys are stored in a secure OUT-OF-WORKSPACE vault inaccessible to you.
 7. NO LLM INGESTION: Tool results are for the USER, not for the LLM.
 
+=== REQUIRED FILES (MUST CREATE ALL) ===
+1. apps.py with AppConfig class name {app_spec.name.title()}Config and name = "apps.{app_spec.name}"
+2. models.py with ALL models defined in the spec
+3. tools.py with @agent_tool functions for every tool in the spec
+4. admin.py registering all models
+
 === MODELS ===
 {''.join(entities_desc)}
 
@@ -160,7 +216,10 @@ Description: {app_spec.description}
 2. Use Django 6's async ORM methods (aget, acreate, alist, etc.).
 3. Tools should be async and focus on discrete operations (CRUD or API actions).
 4. Include robust error handling that returns a dict with 'error' or 'success' fields.
-5. Register models in admin.py for visibility.
+5. USER-FACING OUTPUT: ALL tools MUST return a "display_markdown" key in the result dict. This should be a user-friendly Markdown summary of the action (e.g., "✅ Client **John Doe** created successfully."). The system consumes this to show the user.
+6. Register models in admin.py for visibility.
+7. Function signatures MUST place required params BEFORE optional params (no defaults before required).
+8. tools.py MUST import models from `.models` and use async ORM.
 """
     
     async def _update_settings(self, app_spec: AppSpec) -> bool:
@@ -196,11 +255,12 @@ Description: {app_spec.description}
     async def _run_migrations(self, app_name: str) -> bool:
         """Run migrations for the new app."""
         import asyncio
+        import sys
         
         try:
             # Make migrations
             process = await asyncio.create_subprocess_exec(
-                "python", "manage.py", "makemigrations", f"apps.{app_name}",
+                sys.executable, "manage.py", "makemigrations", app_name,
                 cwd=self.base_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -209,7 +269,7 @@ Description: {app_spec.description}
             
             # Apply migrations
             process = await asyncio.create_subprocess_exec(
-                "python", "manage.py", "migrate",
+                sys.executable, "manage.py", "migrate", app_name,
                 cwd=self.base_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -226,6 +286,112 @@ Description: {app_spec.description}
             
         except Exception as e:
             logger.error(f"Migration error: {e}")
+            return False
+
+    async def _generate_tools_file(self, app_spec: AppSpec, app_dir: Path) -> bool:
+        """Generate a minimal tools.py file if OpenCode missed it."""
+        try:
+            from textwrap import indent
+
+            def _py_type(field) -> str:
+                mapping = {
+                    "CharField": "str",
+                    "TextField": "str",
+                    "EmailField": "str",
+                    "FileField": "str",
+                    "ImageField": "str",
+                    "JSONField": "dict",
+                    "UUIDField": "str",
+                    "ForeignKey": "str",
+                    "ManyToManyField": "list[str]",
+                    "IntegerField": "int",
+                    "FloatField": "float",
+                    "DecimalField": "float",
+                    "BooleanField": "bool",
+                    "DateTimeField": "str",
+                    "DateField": "str",
+                }
+                return mapping.get(field.field_type.value, "str")
+
+            model_imports = ", ".join(sorted({e.name for e in app_spec.entities}))
+            lines = [
+                '"""',
+                f"Auto-generated tools for {app_spec.display_name}.",
+                '"""',
+                "from core.decorators import agent_tool",
+                "from asgiref.sync import sync_to_async",
+                f"from .models import {model_imports}",
+                "",
+                "def _to_dict(obj):",
+                "    data = {}",
+                "    for field in obj._meta.fields:",
+                "        data[field.name] = getattr(obj, field.name)",
+                "    return data",
+                "",
+            ]
+
+            for tool in app_spec.tools:
+                model_name = tool.entity
+                model_var = model_name
+                tool_name = tool.name
+                secrets = tool.secrets or []
+                secrets_arg = f", secrets={secrets}" if secrets else ""
+
+                params = []
+                if tool.operation in {"read", "update", "delete"}:
+                    params.append("id: str")
+                if tool.operation in {"create", "update"}:
+                    entity = next((e for e in app_spec.entities if e.name == model_name), None)
+                    if entity:
+                        required_params = []
+                        optional_params = []
+                        for field in entity.fields:
+                            param_type = _py_type(field)
+                            if field.required:
+                                required_params.append(f"{field.name}: {param_type}")
+                            else:
+                                optional_params.append(f"{field.name}: {param_type} = None")
+                        params.extend(required_params + optional_params)
+                if tool.operation == "search":
+                    params.append("limit: int = 20")
+
+                params_str = ", ".join(params)
+                lines.extend([
+                    "@agent_tool(",
+                    f"    name=\"{tool_name}\",",
+                    f"    description=\"{tool.description}\",",
+                    "    log_response_to_orm=True,",
+                    f"    category=\"{app_spec.name}\"{secrets_arg}",
+                    ")",
+                    f"async def {tool_name}({params_str}) -> dict:",
+                ])
+
+                if tool.operation == "create":
+                    lines.append(indent(f"obj = await sync_to_async({model_var}.objects.create)(**{{k: v for k, v in locals().items() if k != 'obj'}})", "    "))
+                    lines.append(indent("return {\"id\": str(obj.id), \"display_markdown\": f\"✅ Created {obj}\"}", "    "))
+                elif tool.operation == "read":
+                    lines.append(indent(f"obj = await sync_to_async({model_var}.objects.get)(id=id)", "    "))
+                    lines.append(indent("return {\"data\": _to_dict(obj), \"display_markdown\": f\"✅ Loaded {obj}\"}", "    "))
+                elif tool.operation == "update":
+                    lines.append(indent(f"obj = await sync_to_async({model_var}.objects.get)(id=id)", "    "))
+                    lines.append(indent("for k, v in locals().items():\n        if k not in ('id', 'obj') and v is not None:\n            setattr(obj, k, v)", "    "))
+                    lines.append(indent("await sync_to_async(obj.save)()", "    "))
+                    lines.append(indent("return {\"id\": str(obj.id), \"display_markdown\": f\"✅ Updated {obj}\"}", "    "))
+                elif tool.operation == "delete":
+                    lines.append(indent(f"obj = await sync_to_async({model_var}.objects.get)(id=id)", "    "))
+                    lines.append(indent("await sync_to_async(obj.delete)()", "    "))
+                    lines.append(indent("return {\"status\": \"deleted\", \"display_markdown\": \"✅ Deleted\"}", "    "))
+                elif tool.operation == "search":
+                    lines.append(indent(f"qs = await sync_to_async(list)({model_var}.objects.all()[:limit])", "    "))
+                    lines.append(indent("return {\"results\": [_to_dict(o) for o in qs], \"display_markdown\": f\"✅ Found {len(qs)}\"}", "    "))
+                else:
+                    lines.append(indent("return {\"status\": \"not_implemented\", \"display_markdown\": \"⚠️ Not implemented\"}", "    "))
+                lines.append("")
+
+            (app_dir / "tools.py").write_text("\n".join(lines))
+            return True
+        except Exception as e:
+            logger.error(f"Failed to generate tools.py: {e}")
             return False
     
     async def _register_tools(self, app_spec: AppSpec) -> int:
@@ -249,6 +415,23 @@ Description: {app_spec.description}
             logger.error(f"Tool registration error: {e}")
             return 0
 
+    def _validate_generated_app(self, app_spec: AppSpec) -> list[str]:
+        """Return a list of validation issues for the generated app."""
+        issues = []
+        app_dir = Path(self.base_dir) / "apps" / app_spec.name
+        required_files = ["apps.py", "models.py", "tools.py", "admin.py"]
+        for filename in required_files:
+            if not (app_dir / filename).exists():
+                issues.append(f"missing_file:{filename}")
+
+        tools_path = app_dir / "tools.py"
+        if tools_path.exists():
+            try:
+                compile(tools_path.read_text(), str(tools_path), "exec")
+            except SyntaxError as exc:
+                issues.append(f"tools_syntax:{exc.msg}")
+        return issues
+
     async def _validate_and_fix(self, app_spec: AppSpec, attempts: int = 3, model: Optional[str] = None) -> dict:
         """
         Validate the generated app and attempt to fix it if it fails.
@@ -257,6 +440,20 @@ Description: {app_spec.description}
             logger.info(f"Validation attempt {i+1} for {app_spec.name}")
             
             try:
+                issues = self._validate_generated_app(app_spec)
+                if issues:
+                    logger.warning(f"Validation issues for {app_spec.name}: {issues}")
+                    app_dir = Path(self.base_dir) / "apps" / app_spec.name
+                    if any(issue.startswith("missing_file:tools.py") for issue in issues) or any(
+                        issue.startswith("tools_syntax:") for issue in issues
+                    ):
+                        logger.info(f"Regenerating tools.py for {app_spec.name} due to validation issues.")
+                        await self._generate_tools_file(app_spec, app_dir)
+                        issues = self._validate_generated_app(app_spec)
+                        if not issues:
+                            logger.info(f"App {app_spec.name} validated successfully after tools.py regeneration.")
+                            return {"success": True}
+
                 # Attempt to import the tools module to trigger any syntax/import errors
                 import importlib
                 import sys
@@ -284,6 +481,10 @@ Description: {app_spec.description}
                 
                 # Attempt to fix using OpenCode
                 logger.info(f"Attempting to fix {app_spec.name} using OpenCode CLI...")
+                
+                # Get current diff for context
+                context_diff = git_service.get_last_diff()
+                
                 fix_prompt = f"""
 The previously generated app '{app_spec.name}' has errors. 
 Please FIX the code based on this traceback:
@@ -294,8 +495,13 @@ Please FIX the code based on this traceback:
 1. Ensure all imports are correct.
 2. Ensure @agent_tool is imported from `core.decorators`.
 3. Check for indentation or basic Python syntax errors.
+4. REQUIRED FILES: apps.py, models.py, tools.py, admin.py must all exist.
+5. Function signatures MUST place required params BEFORE optional params.
+
+=== CURRENT CHANGES (for context) ===
+{context_diff[:5000]}
 """
-                await OpenCodeExecutor.generate_django_app(
+                await opencode_executor.generate_django_app(
                     app_name=app_spec.name,
                     app_spec=fix_prompt,
                     base_dir=self.base_dir,
@@ -306,6 +512,21 @@ Please FIX the code based on this traceback:
                 await app_reloader.reload_app(app_spec.name)
         
         return {"success": False, "error": "Exhausted attempts"}
+
+    async def recover_app(self, app_spec: AppSpec, model: Optional[str] = None) -> dict:
+        """Attempt to recover a partially generated app."""
+        try:
+            validation = await self._validate_and_fix(app_spec, model=model)
+            if not validation["success"]:
+                return validation
+
+            await self._run_migrations(app_spec.name)
+            await app_reloader.reload_app(app_spec.name)
+            tools_registered = await self._register_tools(app_spec)
+            return {"success": True, "tools_registered": tools_registered}
+        except Exception as e:
+            logger.error(f"Recovery failed for {app_spec.name}: {e}")
+            return {"success": False, "error": str(e)}
 
 
 # Singleton instance

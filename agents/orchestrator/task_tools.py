@@ -37,7 +37,8 @@ async def create_task(
         "status": "created",
         "task_id": str(task.id),
         "title": title,
-        "due_date": due_date
+        "due_date": due_date,
+        "display_markdown": f"✅ **Task Created**: {title}\n📅 **Due**: {due_date or 'No Date'}\n📌 **Priority**: {priority}"
     }
 
 @agent_tool(
@@ -61,7 +62,10 @@ async def list_tasks(status: str = 'todo', project: str = None, _user_id: str = 
             "project": t.project
         })
     
-    return {"tasks": tasks}
+    return {
+        "tasks": tasks, 
+        "display_markdown": "### 📋 Your Tasks\n\n" + (chr(10).join([f"- **{t['title']}** ({t['priority']}) - {t['due_date'] or 'No date'}" for t in tasks]) if tasks else "No tasks found.")
+    }
 
 @agent_tool(
     name="complete_task",

@@ -14,6 +14,7 @@ from django.apps import apps
 from django.db import connection
 from django.core.management import call_command
 from core.registry import capability_registry
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,16 @@ class DynamicAppReloader:
             # 1. Ensure app is in sys.modules
             app_module_path = f"apps.{app_name}"
             
-            # 2. Reload models and tools
+            # 2. Reload models and tools (with syntax protection)
             for sub_module in ["models", "tools", "apps"]:
                 mod_path = f"{app_module_path}.{sub_module}"
                 if mod_path in sys.modules:
+                    # Syntax Check
+                    mod_file = sys.modules[mod_path].__file__
+                    if mod_file and not DynamicAppReloader._check_syntax(mod_file):
+                        logger.error(f"Syntax error in {mod_path}, skipping reload.")
+                        return False
+                        
                     importlib.reload(sys.modules[mod_path])
                     logger.debug(f"Reloaded module: {mod_path}")
             
@@ -53,7 +60,7 @@ class DynamicAppReloader:
             capability_registry.discover_tools()
             
             # 5. Handle Gunicorn workers if applicable
-            await self._handle_gunicorn_reload()
+            await DynamicAppReloader._handle_gunicorn_reload()
             
             logger.info(f"Successfully hot-reloaded {app_name}")
             return True
@@ -62,7 +69,8 @@ class DynamicAppReloader:
             logger.exception(f"Failed to hot-reload app {app_name}: {e}")
             return False
 
-    async def _handle_gunicorn_reload(self):
+    @staticmethod
+    async def _handle_gunicorn_reload():
         """
         In a production VPS environment (Gunicorn), we need to signal
         the master process to gracefully reload its workers so they
@@ -81,6 +89,21 @@ class DynamicAppReloader:
                 logger.error(f"Failed to signal Gunicorn: {e}")
         else:
             logger.debug("Gunicorn PID file not found, skipping Gunicorn reload.")
+
+    @staticmethod
+    def _check_syntax(file_path: str) -> bool:
+        """Check if a python file has syntax errors."""
+        try:
+            with open(file_path, 'r') as f:
+                source = f.read()
+            compile(source, file_path, 'exec')
+            return True
+        except SyntaxError as e:
+            logger.error(f"Syntax error in {file_path}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error reading file {file_path}: {e}")
+            return False
             
     @staticmethod
     async def _run_migrations(app_name: str):
@@ -89,8 +112,8 @@ class DynamicAppReloader:
         
         try:
             # Sync migrations to DB
-            await sync_to_async(call_command)('makemigrations', f'apps.{app_name}')
-            await sync_to_async(call_command)('migrate', f'apps.{app_name}')
+            await sync_to_async(call_command)('makemigrations', app_name)
+            await sync_to_async(call_command)('migrate', app_name)
             logger.info(f"Migrations applied for {app_name}")
         except Exception as e:
             logger.error(f"Migration error during reload: {e}")

@@ -7,10 +7,13 @@
 ## ✨ Features
 
 *   **🧠 Infinite Semantic Memory**: Uses **LanceDB** to store and recall past conversations and tool results forever.
-*   **🛠️ Dynamic App Generation**: Build new specialized apps (e.g., Legal Assistant, Financial Researcher) on the fly using the **Developer Agent** and OpenCode CLI.
-*   **💻 Autonomous Coding**: Integrated **OpenCode CLI** for hands-free codebase modifications and script generation.
-*   **🧩 Agent Skills & Plugins**: Modular skill system to group tools and package them into plugins for multi-agent personas.
-*   **🎭 Custom Agent Personas**: Create and switch between specialized agents with limited toolsets and unique personalities.
+*   **🛠️ Dynamic App Generation**: Build new specialized apps on the fly using the **Developer Agent** and OpenCode CLI.
+*   **🌐 Expanded LLM Ecosystem**: Seamlessly switch between **OpenAI, Anthropic, Google Gemini, Ollama, OpenRouter, and Together AI**.
+*   **👁️ Advanced OCR & Vision**: Extract text from scanned PDFs and images using local **Ollama Vision** models (Llava) with **Tesseract** fallback.
+*   **🎙️ Local Text-to-Speech**: High-quality local voice synthesis using **microsoft/VibeVoice-1.5B**.
+*   **🛡️ Out-of-Band Secure Credentials**: Signal-based input mechanism ensures API keys are **never seen by the LLM**.
+*   **🔄 Git Checkpoints & Rollback**: Automatic pre-generation checkpoints with one-click **rollback** and **autofix** capabilities.
+*   **🏥 Self-Healing Supervisor**: Watchdog service in `run.py` that captures crash logs and **auto-restarts** the server on failure.
 *   **🔌 MCP Server Support**: Standardized **Model Context Protocol** endpoints for interoperability with external AI tools (Cursor, Claude Desktop).
 *   **🔗 Webhook Integration**: Trigger external notifications and workflows based on agent actions and tool results.
 *   **📂 Intelligent Document Management**: Automatically categorize and organize uploaded files into a structured directory tree.
@@ -20,10 +23,10 @@
 *   **🎙️ Autonomous Voice Ingestion**: Speak to your agent via Telegram; it transcribes, extracts intent, and takes action automatically.
 *   **🔗 Knowledge Graph**: Semantic linking between documents, contacts, and tasks for a unified data web.
 *   **📋 Task & Finance Engine**: Proactive to-do management with reminders and a built-in financial ledger for budget tracking.
+*   **⚡ SecureAssist Task Engine (SATE)**: Decompose complex objectives into parallelized, dependency-aware task graphs for maximum efficiency.
 *   **📰 Intelligence Feeds**: Subscribe topics for the agent to monitor the web and alert you on significant updates.
-*   **⚡ Zero-Downtime Hot-Reloading**: Inject new models and tools into the running system without restarting the server.
-*   **👁️ Multi-Modal Vision**: Analyze complex document layouts, tables, and images using integrated GPT-4o Vision support.
 *   **🛡️ Security-First Architecture**: Features mandatory ORM logging for tools, secret injection at runtime, and comprehensive audit logs.
+*   **⚡ Zero-Downtime Hot-Reloading**: Inject new models and tools with **syntax protection** to prevent system instability.
 
 ---
 
@@ -59,8 +62,9 @@ setup.bat
 ### 2. Configuration (Onboarding Wizard)
 After installation, the **Onboarding Wizard** will launch automatically. It will:
 - Generate your unique **Secret Keys** for encryption.
-- Help you configure your **API Keys** (OpenAI, Anthropic, Tavily).
-- Create your initial `.env` file. (See `.env.example` for reference).
+- Configure your **LLM Providers** (OpenRouter, Together AI, Ollama, OpenAI, etc.).
+- Set up **Advanced OCR** and **Local TTS** settings.
+- Create your initial `.env` file and secure vault.
 
 *If you need to run it again later:*
 ```bash
@@ -68,17 +72,11 @@ python onboard.py
 ```
 
 ### 3. Run the Platform
-You need to run two processes to get the full experience:
-
-**Process A: The Server (Backend & API)**
+**One-Click Launcher (Recommended)**
 ```bash
-python manage.py runserver
+python run.py
 ```
-
-**Process B: The Chat Interface (Telegram Bot)**
-```bash
-python manage.py run_bot
-```
+*This starts the Backend, Bot, and Supervising Watchdog in one command.*
 
 ### ☁️ VPS / Production Deployment (Gunicorn)
 For professional deployments on a VPS, use **Gunicorn** with Uvicorn workers. Our hot-reload system supports Gunicorn by signalling the master process to refresh workers when new apps are generated.
@@ -139,6 +137,30 @@ SecureAssist comes with a built-in "OS Integration" layer for essential professi
 ### 📑 Universal Data Entry
 The **Generic Entity Registry** allows you to save structured information without needing special apps.
 
+### 🛡️ Secure Vault Administration
+Manage your credentials safely using the CLI utility:
+```bash
+python scripts/vault_admin.py
+```
+This tool allows you to add/update secrets with masked input, keeping them separate from your working project.
+
+---
+
+## 🏗️ Advanced Reliability & Git
+SecureAssist ensures your development process is robust and reversible.
+
+### 🔄 Git Versioning
+- **Automated Checkpoints**: The system commits changes before and after every generation.
+- **Commands**: 
+  - `/git_status`: Check current development state.
+  - `/rollback`: Revert to the last stable checkpoint immediately.
+
+### 🏥 Crash Recovery
+The **Process Supervisor** in `run.py` monitors system health:
+- Automatically restarts processes on crash.
+- Captures and displays the last 10 lines of crash logs for debugging.
+- Prevents system downtime during heavy development or app generation.
+
 ---
 
 ## 🚀 Advanced OS & Intelligence
@@ -160,6 +182,12 @@ Everything in SecureAssist is connected. You can link a **Document** to a **Cont
 The agent doesn't just wait for you.
 - It tracks a global to-do list with priorities and due dates.
 - It proactively suggests tasks during your **Daily Briefing**.
+
+### ⚡ SecureAssist Task Engine (SATE)
+For heavy-duty workflows, use the **Parallel Execution Engine**:
+- **DAG Execution**: Breaks down "Research X then Build Y" into a graph of sub-tasks.
+- **Parallelism**: Runs independent tasks (e.g., researching 3 competitors) simultaneously.
+- **Efficiency**: Reduces wait time by maximizing agent concurrency.
 
 ### 📰 Intelligence Feeds (Watchdog)
 Monitor the web for topics you care about.
@@ -185,9 +213,6 @@ You can register external HTTP endpoints to receive real-time updates from your 
 - **Events**: `tool_execution_success`, `tool_execution_failed`, and more.
 - **Security**: HMAC-SHA256 signatures are included in the `X-SecureAssist-Signature` header for verification.
 - **Configuration**: Manage webhooks via the chat: *"Register a webhook to https://my-service.com/hooks"*
-
-> [!TIP]
-> **Example Usecase**: Automatically update your **Slack** or **Trello** board. Say: *"Register a webhook for any 'invoice_processed' events to my Zapier hook."* Now, every time your agent successfully processes an invoice, Zapier receives the data and can post a notification to Slack or create a Trello card automatically.
 
 ---
 
@@ -217,6 +242,21 @@ The Orchestrator includes a final safety net. Every response is scanned for know
 - `/apps`: Dynamically generated sub-applications.
 - `/integrations`: API, Telegram, and other entry points.
 - `/data`: Persistent storage for LanceDB and SQLite.
+
+---
+
+---
+
+## 🔮 Roadmap & Future Features
+
+SecureAssist is evolving rapidly. Here is what's coming next:
+
+- **👥 Multi-User Collaboration**: Role-Based Access Control (RBAC) for teams sharing an agent.
+- **📱 Mobile Companion App**: Native Flutter/React Native app for on-the-go access.
+- **🗣️ Live Voice Mode**: Real-time, 2-way audio conversations (WebRTC).
+- **🐳 Docker Compose Support**: Simplified self-hosting container stack.
+- **🎯 Agent Fine-Tuning Studio**: UI to train custom LoRAs for specific agent personas.
+- **🔌 Enterprise Integrations**: Native connectors for Slack, Jira, Linear, and Salesforce.
 
 ---
 

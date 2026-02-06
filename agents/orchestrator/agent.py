@@ -6,6 +6,7 @@ and manages the complete app generation workflow.
 """
 import logging
 import uuid
+from pathlib import Path
 from typing import Optional
 from pydantic import BaseModel, Field
 from django.conf import settings
@@ -57,6 +58,31 @@ class OrchestratorAgent:
     def __init__(self):
         self.domain_analyzer = DomainAnalyzer()
         self._pending_tasks = {}  # task_id -> pending task info
+
+    def _get_tool_category(self, tool_name: str) -> Optional[str]:
+        registry = capability_registry.get_full_registry()
+        for category, data in registry.items():
+            for tool in data.get("tools", []):
+                if tool.get("name") == tool_name:
+                    return category
+        return None
+
+    async def _attempt_tool_recovery(self, tool_name: str) -> bool:
+        """Try to recover tool execution by reloading its app/module."""
+        category = self._get_tool_category(tool_name)
+        if not category:
+            return False
+        app_dir = Path(settings.BASE_DIR) / "apps" / category
+        if not app_dir.exists():
+            return False
+        try:
+            await app_reloader.reload_app(category)
+            capability_registry.discover_tools()
+            logger.info(f"Recovered tools for app category: {category}")
+            return True
+        except Exception as e:
+            logger.warning(f"Tool recovery failed for {tool_name}: {e}")
+            return False
     
     async def process(
         self,
@@ -119,7 +145,7 @@ class OrchestratorAgent:
             # 6. Route based on intent
             if intent.intent == "create_app":
                 result = await self._handle_create_app(
-                    session_id, user_id, message, intent
+                    session_id, user_id, message, intent, custom_agent
                 )
             
             elif intent.intent == "use_tool":
@@ -153,9 +179,16 @@ class OrchestratorAgent:
                 
         except Exception as e:
             logger.exception(f"Orchestrator error: {e}")
+            # Check if it's an XML parsing error and provide a user-friendly message
+            error_msg = str(e).lower()
+            if "parse entity" in error_msg or "byte offset" in error_msg or "xml" in error_msg:
+                return OrchestratorResult(
+                    session_id=session_id,
+                    response=f"🛑 **Parsing Error**: I encountered an issue parsing the AI response. This usually happens when the response contains special characters or malformed XML-like content.\n\nPlease try rephrasing your request."
+                )
             return OrchestratorResult(
                 session_id=session_id,
-                response=f"I encountered an error: {str(e)}"
+                response=f"🛑 **Critical Error**: I was unable to complete your request due to a system failure.\n\nError Details: `{str(e)}`\n\nPlease try again or check the system logs."
             )
     
     async def _classify_intent(self, message: str) -> IntentType:
@@ -182,7 +215,14 @@ class OrchestratorAgent:
             )
             return intent
         except Exception as e:
-            logger.warning(f"LLM classification failed: {e}. Falling back to keyword matching.")
+            error_str = str(e).lower()
+            logger.warning(f"LLM classification failed: {e}")
+            
+            # Check for XML/entity parsing errors and fall back immediately
+            if "parse entity" in error_str or "byte offset" in error_str or "xml" in error_str:
+                logger.warning("XML/entity parsing error detected, using keyword fallback")
+            else:
+                logger.warning(f"LLM classification failed with non-XML error: {e}")
             
             # Fallback to legacy keyword matching
             app_keywords = ["i'm a", "i am a", "build me", "create an app", "i need an app", "make me"]
@@ -225,7 +265,8 @@ class OrchestratorAgent:
         session_id: str,
         user_id: str,
         message: str,
-        intent: IntentType
+        intent: IntentType,
+        custom_agent: Optional[Any] = None
     ) -> OrchestratorResult:
         """Handle app creation request."""
         
@@ -271,9 +312,29 @@ You can now use these tools! Try: "Create a new client named John Doe"
                 app_created=app_spec.name
             )
         else:
+            # Attempt recovery once for partial generations
+            recovery = await developer_agent.recover_app(app_spec, model=custom_agent.model_id if custom_agent else None)
+            if recovery.get("success"):
+                response = f"""✅ **{app_spec.display_name}** created successfully (after recovery)!
+
+📦 **App Location**: `apps/{app_spec.name}/`
+🔧 **Tools Registered**: {recovery.get('tools_registered', len(app_spec.tools))}
+
+**Entities Created**:
+{chr(10).join(f'• {e.name}' for e in app_spec.entities)}
+
+**Available Tools**:
+{chr(10).join(f'• `{t.name}`: {t.description}' for t in app_spec.tools[:5])}
+{f'... and {len(app_spec.tools) - 5} more' if len(app_spec.tools) > 5 else ''}
+"""
+                return OrchestratorResult(
+                    session_id=session_id,
+                    response=response,
+                    app_created=app_spec.name
+                )
             return OrchestratorResult(
                 session_id=session_id,
-                response=f"❌ Failed to create app: {build_result.get('error', 'Unknown error')}"
+                response=f"❌ **App Creation Failed**: {build_result.get('error', 'Unknown error')}\n\nI attempted to build the app but encountered a persistent issue. You may want to try again with a simpler description."
             )
     
     async def _handle_tool_use(
@@ -293,58 +354,88 @@ You can now use these tools! Try: "Create a new client named John Doe"
                 response=f"Tool '{intent.tool_name}' not found."
             )
         
-        try:
-            # Inject custom agent model if available and not overridden
-            if custom_agent and custom_agent.model_id and "model" not in intent.parameters:
-                intent.parameters["model"] = custom_agent.model_id
+        # Inject custom agent model if available and not overridden
+        if custom_agent and custom_agent.model_id and "model" not in intent.parameters:
+            intent.parameters["model"] = custom_agent.model_id
 
-            # Execute tool with parameters
-            result = await tool(
-                _user_id=user_id,
-                _session_id=session_id,
-                **intent.parameters
-            )
-            
-            # Check for pending approval
-            if isinstance(result, dict) and result.get("status") == "pending_approval":
-                task_id = result.get("task_id")
-                self._pending_tasks[task_id] = result
+        for attempt in range(2):
+            try:
+                # Execute tool with parameters
+                result = await tool(
+                    _user_id=user_id,
+                    _session_id=session_id,
+                    **intent.parameters
+                )
                 
+                # Check for pending approval
+                if isinstance(result, dict) and result.get("status") == "pending_approval":
+                    task_id = result.get("task_id")
+                    self._pending_tasks[task_id] = result
+                    
+                    return OrchestratorResult(
+                        session_id=session_id,
+                        response=f"🔐 This action requires approval: {result.get('description')}",
+                        requires_approval=True,
+                        pending_task_id=task_id
+                    )
+                
+                # Check for secure credential request
+                if isinstance(result, dict) and result.get("signal") == "WAITING_FOR_SECRET":
+                    return OrchestratorResult(
+                        session_id=session_id,
+                        response=result.get("instructions", "I need a secure credential to proceed."),
+                        wait_for_secret=True,
+                        metadata={"secret_name": result.get("secret_name")}
+                    )
+
+                # Surface tool errors clearly to the user
+                if isinstance(result, dict) and result.get("status") == "error":
+                    if attempt == 0 and await self._attempt_tool_recovery(intent.tool_name):
+                        continue
+                    error_msg = result.get("error", "Unknown error")
+                    hint = result.get("hint")
+                    if hint:
+                        error_msg = f"{error_msg}\n\nHint: {hint}"
+                    return OrchestratorResult(
+                        session_id=session_id,
+                        response=f"❌ **Tool Failure**: The tool `{intent.tool_name}` failed to execute.\n\nError: `{error_msg}`",
+                        tool_responses=[str(result)]
+                    )
+
+                # Check for formatted display content (Priority for User)
+                if isinstance(result, dict) and "display_markdown" in result:
+                    return OrchestratorResult(
+                        session_id=session_id,
+                        response=result["display_markdown"],
+                        tool_responses=[str(result)] # Keep raw data for history/logs
+                    )
+
                 return OrchestratorResult(
                     session_id=session_id,
-                    response=f"🔐 This action requires approval: {result.get('description')}",
-                    requires_approval=True,
-                    pending_task_id=task_id
+                    response=f"✅ Tool executed successfully",
+                    tool_responses=[str(result)]
                 )
-            
-            # Check for secure credential request
-            if isinstance(result, dict) and result.get("signal") == "WAITING_FOR_SECRET":
+                
+            except ValueError as e:
+                if "Required secret" in str(e):
+                    secret_name = str(e).split("'")[1]
+                    return OrchestratorResult(
+                        session_id=session_id,
+                        response=f"🔑 **Security Required**: I need your `{secret_name}` to proceed. Please provide it by setting the environment variable or via the secure settings menu."
+                    )
+                raise e
+            except Exception as e:
+                if attempt == 0 and await self._attempt_tool_recovery(intent.tool_name):
+                    continue
                 return OrchestratorResult(
                     session_id=session_id,
-                    response=result.get("instructions", "I need a secure credential to proceed."),
-                    wait_for_secret=True,
-                    metadata={"secret_name": result.get("secret_name")}
+                    response=f"❌ **Tool Failure**: The tool `{intent.tool_name}` failed to execute.\n\nError: `{str(e)}`"
                 )
 
-            return OrchestratorResult(
-                session_id=session_id,
-                response=f"✅ Tool executed successfully",
-                tool_responses=[str(result)]
-            )
-            
-        except ValueError as e:
-            if "Required secret" in str(e):
-                secret_name = str(e).split("'")[1]
-                return OrchestratorResult(
-                    session_id=session_id,
-                    response=f"🔑 **Security Required**: I need your `{secret_name}` to proceed. Please provide it by setting the environment variable or via the secure settings menu."
-                )
-            raise e
-        except Exception as e:
-            return OrchestratorResult(
-                session_id=session_id,
-                response=f"❌ Tool execution failed: {str(e)}"
-            )
+        return OrchestratorResult(
+            session_id=session_id,
+            response=f"❌ **Tool Failure**: The tool `{intent.tool_name}` failed to execute after recovery attempts."
+        )
     
     async def _handle_approval(
         self,
@@ -401,7 +492,8 @@ Your primary directive is to be helpful and proactive using your available capab
 4. TASKS & FINANCE: Use `create_task` for todos and `log_transaction` for expenses.
 5. AGENT MANAGEMENT: Use `create_agent_skill` to group tools. Use `create_custom_agent` to create new agent personas and assign skills.
 6. CODING: Use `run_opencode_command` for any advanced autonomous coding or script generation.
-7. CONNECTIVITY: You act as an MCP server. Mention webhooks if the user wants external notifications.
+7. PLANNING: Use `create_execution_plan` for complex, multi-step requests (e.g., "Research X then build Y").
+8. CONNECTIVITY: You act as an MCP server. Mention webhooks if the user wants external notifications.
 
 {relevant_history}
 
@@ -431,10 +523,30 @@ When storing info, try to LINK it to existing context using `link_knowledge_node
             
         except Exception as e:
             logger.error(f"LLM response failed: {e}")
-            return OrchestratorResult(
-                session_id=session_id,
-                response="I can help you create apps or use tools. Try saying 'I'm a lawyer' to create a legal practice app!"
-            )
+            # Retry with minimal context
+            try:
+                retry_messages = [
+                    {
+                        "role": "system",
+                        "content": f"You are {agent_name}, an AI assistant with a '{agent_persona}' personality."
+                    },
+                    {"role": "user", "content": message}
+                ]
+                response = await model_router.complete(
+                    task_type="orchestrate",
+                    messages=retry_messages,
+                    max_tokens=300,
+                    agent_name=agent_name
+                )
+                return OrchestratorResult(
+                    session_id=session_id,
+                    response=response.choices[0].message.content
+                )
+            except Exception:
+                return OrchestratorResult(
+                    session_id=session_id,
+                    response="I can help you create apps or use tools. Try saying 'I'm a lawyer' to create a legal practice app!"
+                )
     
     async def execute_approved_task(self, task_id: str):
         """Execute a previously approved task."""

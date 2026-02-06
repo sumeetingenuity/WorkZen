@@ -10,6 +10,33 @@ Configured for:
 
 import os
 from pathlib import Path
+import json
+
+# Load secrets from vault if available
+vault_path = os.path.expanduser("~/.secureassist/vault.json")
+if os.path.exists(vault_path):
+    try:
+        with open(vault_path, "r") as f:
+            secrets = json.load(f)
+            for k, v in secrets.items():
+                if k not in os.environ: # Don't overwrite existing env vars
+                    os.environ[k] = str(v)
+    except Exception as e:
+        print(f"Warning: Failed to load secrets from vault: {e}")
+
+# Load .env config if available
+env_path = Path(__file__).resolve().parent.parent / '.env'
+if env_path.exists():
+    try:
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    if k not in os.environ:
+                        os.environ[k] = v
+    except Exception as e:
+        print(f"Warning: Failed to load .env: {e}")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -60,7 +87,24 @@ INSTALLED_APPS = [
     # Integrations
     'integrations.api.apps.ApiConfig',
     'integrations.telegram_bot.apps.TelegramBotConfig',
+    'apps.legal.apps.LegalConfig',
 ]
+
+# Filter missing dynamic apps to avoid startup failures after partial generation
+try:
+    import importlib.util
+    _cleaned_apps = []
+    for _app in INSTALLED_APPS:
+        _module_path = _app
+        if _app.endswith("Config") and "." in _app:
+            _module_path = _app.rsplit(".", 1)[0]
+        if _app.startswith("apps.") and importlib.util.find_spec(_module_path) is None:
+            print(f"Warning: Skipping missing app: {_app}")
+            continue
+        _cleaned_apps.append(_app)
+    INSTALLED_APPS = _cleaned_apps
+except Exception as _e:
+    print(f"Warning: Failed to validate INSTALLED_APPS: {_e}")
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -266,15 +310,24 @@ LOGGING = {
 # LLM Configuration
 # =============================================================================
 
+_llm_orchestrate = os.environ.get('LLM_ORCHESTRATE', 'anthropic/claude-sonnet-4-20250514')
+_llm_summarize = os.environ.get('LLM_SUMMARIZE', _llm_orchestrate)
+_llm_code = os.environ.get('LLM_CODE', _llm_orchestrate)
+_llm_tool = os.environ.get('LLM_TOOL', _llm_orchestrate)
+_llm_vision = os.environ.get('LLM_VISION', 'openai/gpt-4o')
+_llm_embed = os.environ.get('LLM_EMBED', 'openai/text-embedding-3-small')
+_llm_tts = os.environ.get('LLM_TTS', 'openai/tts-1')
+_llm_stt = os.environ.get('LLM_STT', 'openai/whisper-1')
+
 LLM_CONFIG = {
-    'orchestrate': os.environ.get('LLM_ORCHESTRATE', 'anthropic/claude-sonnet-4-20250514'),
-    'summarize': os.environ.get('LLM_SUMMARIZE', 'anthropic/claude-3-haiku-20240307'),
-    'code': os.environ.get('LLM_CODE', 'anthropic/claude-sonnet-4-20250514'),
-    'tool': os.environ.get('LLM_TOOL', 'anthropic/claude-3-haiku-20240307'),
-    'vision': os.environ.get('LLM_VISION', 'openai/gpt-4o'),
-    'embed': os.environ.get('LLM_EMBED', 'openai/text-embedding-3-small'),
-    'tts': os.environ.get('LLM_TTS', 'openai/tts-1'),
-    'stt': os.environ.get('LLM_STT', 'openai/whisper-1'),
+    'orchestrate': _llm_orchestrate,
+    'summarize': _llm_summarize,
+    'code': _llm_code,
+    'tool': _llm_tool,
+    'vision': _llm_vision,
+    'embed': _llm_embed,
+    'tts': _llm_tts,
+    'stt': _llm_stt,
 }
 
 

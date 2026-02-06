@@ -26,9 +26,150 @@
         "requires_approval": false
       },
       {
+        "name": "store_document",
+        "description": "Store a document and track metadata (type, user, session).",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "file_type": {
+              "title": "File Type",
+              "type": "string"
+            },
+            "original_name": {
+              "title": "Original Name",
+              "type": "string"
+            },
+            "mime_type": {
+              "default": "",
+              "title": "Mime Type",
+              "type": "string"
+            },
+            "description": {
+              "default": "",
+              "title": "Description",
+              "type": "string"
+            },
+            "user_id": {
+              "default": "",
+              "title": "User Id",
+              "type": "string"
+            },
+            "session_id": {
+              "default": "",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path",
+            "file_type",
+            "original_name"
+          ],
+          "title": "store_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_documents",
+        "description": "Search stored documents by filename or type.",
+        "input_schema": {
+          "properties": {
+            "query": {
+              "default": "",
+              "title": "Query",
+              "type": "string"
+            },
+            "file_type": {
+              "default": "",
+              "title": "File Type",
+              "type": "string"
+            },
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_documents_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_last_document",
+        "description": "Get the most recently stored document for a user.",
+        "input_schema": {
+          "properties": {
+            "user_id": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "user_id"
+          ],
+          "title": "get_last_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
         "name": "list_files",
         "description": "List all stored files.",
         "input_schema": {},
+        "requires_approval": false
+      },
+      {
+        "name": "organize_document",
+        "description": "Categorize and move a document to structured storage. Categories: legal, medical, finance, technical, custom.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "project": {
+              "default": "general",
+              "title": "Project",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path",
+            "category"
+          ],
+          "title": "organize_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_documents",
+        "description": "List all organized documents. Can filter by category or project.",
+        "input_schema": {
+          "properties": {
+            "category": {
+              "default": null,
+              "title": "Category",
+              "type": "string"
+            },
+            "project": {
+              "default": null,
+              "title": "Project",
+              "type": "string"
+            }
+          },
+          "title": "list_documents_Input",
+          "type": "object"
+        },
         "requires_approval": false
       }
     ],
@@ -139,6 +280,34 @@
           "type": "object"
         },
         "requires_approval": false
+      },
+      {
+        "name": "send_telegram_file",
+        "description": "Send a stored file to the user's Telegram chat.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "caption": {
+              "default": "",
+              "title": "Caption",
+              "type": "string"
+            },
+            "user_id": {
+              "default": "",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "title": "send_telegram_file_Input",
+          "type": "object"
+        },
+        "requires_approval": false
       }
     ],
     "requires": [
@@ -168,6 +337,24 @@
             "file_path"
           ],
           "title": "extract_pdf_text_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "ocr_image_file",
+        "description": "Extract text from an image file using OCR.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "title": "ocr_image_file_Input",
           "type": "object"
         },
         "requires_approval": false
@@ -324,8 +511,1277 @@
           "type": "object"
         },
         "requires_approval": false
+      },
+      {
+        "name": "log_transaction",
+        "description": "Record a financial transaction (income or expense).",
+        "input_schema": {
+          "properties": {
+            "amount": {
+              "title": "Amount",
+              "type": "number"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "category": {
+              "title": "Category",
+              "type": "string"
+            },
+            "currency": {
+              "default": "USD",
+              "title": "Currency",
+              "type": "string"
+            },
+            "project": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Project"
+            }
+          },
+          "required": [
+            "amount",
+            "description",
+            "category"
+          ],
+          "title": "log_transaction_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_financial_report",
+        "description": "Get a summary of finances for a specific category or project.",
+        "input_schema": {
+          "properties": {
+            "category": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Category"
+            },
+            "project": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Project"
+            }
+          },
+          "title": "get_financial_report_Input",
+          "type": "object"
+        },
+        "requires_approval": false
       }
     ],
     "requires": []
+  },
+  "legal": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "create_client",
+        "description": "Create a new Client",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "email": {
+              "default": null,
+              "title": "Email",
+              "type": "string"
+            },
+            "phone": {
+              "default": null,
+              "title": "Phone",
+              "type": "string"
+            },
+            "address": {
+              "default": null,
+              "title": "Address",
+              "type": "string"
+            },
+            "notes": {
+              "default": null,
+              "title": "Notes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "create_client_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_client",
+        "description": "Get Client by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_client_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_clients",
+        "description": "Search Clients by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_clients_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_client",
+        "description": "Update an existing Client",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "email": {
+              "default": null,
+              "title": "Email",
+              "type": "string"
+            },
+            "phone": {
+              "default": null,
+              "title": "Phone",
+              "type": "string"
+            },
+            "address": {
+              "default": null,
+              "title": "Address",
+              "type": "string"
+            },
+            "notes": {
+              "default": null,
+              "title": "Notes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "title": "update_client_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_client",
+        "description": "Delete a Client",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_client_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_case",
+        "description": "Create a new Case",
+        "input_schema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            },
+            "client": {
+              "title": "Client",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "court_date": {
+              "default": null,
+              "title": "Court Date",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "status",
+            "client"
+          ],
+          "title": "create_case_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_case",
+        "description": "Get Case by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_case_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_cases",
+        "description": "Search Cases by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_cases_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_case",
+        "description": "Update an existing Case",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            },
+            "client": {
+              "title": "Client",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "court_date": {
+              "default": null,
+              "title": "Court Date",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "status",
+            "client"
+          ],
+          "title": "update_case_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_case",
+        "description": "Delete a Case",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_case_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_document",
+        "description": "Create a new Document",
+        "input_schema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "file": {
+              "title": "File",
+              "type": "string"
+            },
+            "document_type": {
+              "title": "Document Type",
+              "type": "string"
+            },
+            "notes": {
+              "default": null,
+              "title": "Notes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "file",
+            "document_type"
+          ],
+          "title": "create_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_document",
+        "description": "Get Document by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_documents",
+        "description": "Search Documents by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_documents_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_document",
+        "description": "Update an existing Document",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "file": {
+              "title": "File",
+              "type": "string"
+            },
+            "document_type": {
+              "title": "Document Type",
+              "type": "string"
+            },
+            "notes": {
+              "default": null,
+              "title": "Notes",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "file",
+            "document_type"
+          ],
+          "title": "update_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_document",
+        "description": "Delete a Document",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_contract",
+        "description": "Create a new Contract",
+        "input_schema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "signed": {
+              "title": "Signed",
+              "type": "boolean"
+            },
+            "template": {
+              "default": null,
+              "title": "Template",
+              "type": "string"
+            },
+            "generated_text": {
+              "default": null,
+              "title": "Generated Text",
+              "type": "string"
+            },
+            "signed_at": {
+              "default": null,
+              "title": "Signed At",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "signed"
+          ],
+          "title": "create_contract_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_contract",
+        "description": "Get Contract by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_contract_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_contracts",
+        "description": "Search Contracts by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_contracts_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_contract",
+        "description": "Update an existing Contract",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "signed": {
+              "title": "Signed",
+              "type": "boolean"
+            },
+            "template": {
+              "default": null,
+              "title": "Template",
+              "type": "string"
+            },
+            "generated_text": {
+              "default": null,
+              "title": "Generated Text",
+              "type": "string"
+            },
+            "signed_at": {
+              "default": null,
+              "title": "Signed At",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "signed"
+          ],
+          "title": "update_contract_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_contract",
+        "description": "Delete a Contract",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_contract_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_courtdate",
+        "description": "Create a new CourtDate",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "status": {
+              "default": null,
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "create_courtdate_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_courtdate",
+        "description": "Get CourtDate by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_courtdate_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_courtdates",
+        "description": "Search CourtDates by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_courtdates_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_courtdate",
+        "description": "Update an existing CourtDate",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "status": {
+              "default": null,
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "title": "update_courtdate_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_courtdate",
+        "description": "Delete a CourtDate",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_courtdate_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_invoice",
+        "description": "Create a new Invoice",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "status": {
+              "default": null,
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "create_invoice_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "get_invoice",
+        "description": "Get Invoice by ID",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "get_invoice_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_invoices",
+        "description": "Search Invoices by criteria",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "search_invoices_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "update_invoice",
+        "description": "Update an existing Invoice",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "description": {
+              "default": null,
+              "title": "Description",
+              "type": "string"
+            },
+            "status": {
+              "default": null,
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "title": "update_invoice_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "delete_invoice",
+        "description": "Delete a Invoice",
+        "input_schema": {
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "delete_invoice_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "case_intake",
+        "description": "Execute case intake workflow",
+        "input_schema": {},
+        "requires_approval": false
+      },
+      {
+        "name": "document_review",
+        "description": "Execute document review workflow",
+        "input_schema": {},
+        "requires_approval": false
+      },
+      {
+        "name": "contract_generation",
+        "description": "Execute contract generation workflow",
+        "input_schema": {},
+        "requires_approval": false
+      },
+      {
+        "name": "court_reminder",
+        "description": "Execute court reminder workflow",
+        "input_schema": {},
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  },
+  "system": {
+    "app": "agents",
+    "tools": [
+      {
+        "name": "create_task",
+        "description": "Create a new task or todo item in the system. Use due_date for proactive reminders.",
+        "input_schema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "description": {
+              "default": "",
+              "title": "Description",
+              "type": "string"
+            },
+            "priority": {
+              "default": 2,
+              "title": "Priority",
+              "type": "integer"
+            },
+            "due_date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Due Date"
+            },
+            "project": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Project"
+            }
+          },
+          "required": [
+            "title"
+          ],
+          "title": "create_task_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_tasks",
+        "description": "List active tasks for the current user. Filters: status, project.",
+        "input_schema": {
+          "properties": {
+            "status": {
+              "default": "todo",
+              "title": "Status",
+              "type": "string"
+            },
+            "project": {
+              "default": null,
+              "title": "Project",
+              "type": "string"
+            }
+          },
+          "title": "list_tasks_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "complete_task",
+        "description": "Mark a task as completed.",
+        "input_schema": {
+          "properties": {
+            "task_id": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "task_id"
+          ],
+          "title": "complete_task_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "link_knowledge_nodes",
+        "description": "Create a semantic link between two items (e.g., a document and a contact).",
+        "input_schema": {
+          "properties": {
+            "source_id": {
+              "title": "Source Id",
+              "type": "string"
+            },
+            "source_type": {
+              "title": "Source Type",
+              "type": "string"
+            },
+            "target_id": {
+              "title": "Target Id",
+              "type": "string"
+            },
+            "target_type": {
+              "title": "Target Type",
+              "type": "string"
+            },
+            "relation": {
+              "default": "related_to",
+              "title": "Relation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "source_id",
+            "source_type",
+            "target_id",
+            "target_type"
+          ],
+          "title": "link_knowledge_nodes_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "query_knowledge_graph",
+        "description": "Find all relations for a specific node in the knowledge graph.",
+        "input_schema": {
+          "properties": {
+            "node_id": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "node_id"
+          ],
+          "title": "query_knowledge_graph_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "schedule_task",
+        "description": "Schedule a recurring task or reminder using cron expression. Example: '0 8 * * *' for daily at 8am.",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "cron_expression": {
+              "title": "Cron Expression",
+              "type": "string"
+            },
+            "action_description": {
+              "title": "Action Description",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "cron_expression",
+            "action_description"
+          ],
+          "title": "schedule_task_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_scheduled_tasks",
+        "description": "List all active scheduled tasks and reminders for the current user.",
+        "input_schema": {
+          "properties": {},
+          "title": "list_scheduled_tasks_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "cancel_task",
+        "description": "Cancel a scheduled task by name or ID.",
+        "input_schema": {
+          "properties": {
+            "name_or_id": {
+              "title": "Name Or Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name_or_id"
+          ],
+          "title": "cancel_task_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "generate_daily_briefing",
+        "description": "Run a 'Sweeper' to summarize all activity from today and generate a briefing report.",
+        "input_schema": {
+          "properties": {},
+          "title": "generate_daily_briefing_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "subscribe_to_intelligence_feed",
+        "description": "Subscribe to a topic or URL for proactive monitoring and alerts.",
+        "input_schema": {
+          "properties": {
+            "topic": {
+              "title": "Topic",
+              "type": "string"
+            },
+            "frequency": {
+              "default": "daily",
+              "title": "Frequency",
+              "type": "string"
+            }
+          },
+          "required": [
+            "topic"
+          ],
+          "title": "subscribe_to_intelligence_feed_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_intelligence_feeds",
+        "description": "List all active intelligence feeds for the current user.",
+        "input_schema": {
+          "properties": {},
+          "title": "list_intelligence_feeds_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "unsubscribe_from_feed",
+        "description": "Deactivate an intelligence feed.",
+        "input_schema": {
+          "properties": {
+            "feed_id": {
+              "title": "Feed Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "feed_id"
+          ],
+          "title": "unsubscribe_from_feed_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  },
+  "agent_management": {
+    "app": "agents",
+    "tools": [
+      {
+        "name": "create_agent_skill",
+        "description": "Create a new logical skill grouping several tools.",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "description": {
+              "title": "Description",
+              "type": "string"
+            },
+            "tool_names": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Tool Names",
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "tool_names"
+          ],
+          "title": "create_agent_skill_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "create_custom_agent",
+        "description": "Define a new custom agent with a specific persona and skills.",
+        "input_schema": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "persona": {
+              "title": "Persona",
+              "type": "string"
+            },
+            "skill_names": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Skill Names",
+              "type": "array"
+            },
+            "voice_profile": {
+              "default": "alloy",
+              "title": "Voice Profile",
+              "type": "string"
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Model"
+            }
+          },
+          "required": [
+            "name",
+            "persona",
+            "skill_names"
+          ],
+          "title": "create_custom_agent_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  },
+  "coding": {
+    "app": "agents",
+    "tools": [
+      {
+        "name": "run_opencode_command",
+        "description": "Run an autonomous coding task using the OpenCode CLI.",
+        "input_schema": {
+          "properties": {
+            "instruction": {
+              "title": "Instruction",
+              "type": "string"
+            },
+            "model": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Model"
+            },
+            "provider": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Provider"
+            }
+          },
+          "required": [
+            "instruction"
+          ],
+          "title": "run_opencode_command_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": [
+      "OPENCODE_API_KEY",
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "GEMINI_API_KEY",
+      "OPENROUTER_API_KEY",
+      "TOGETHER_API_KEY",
+      "LITELLM_LOCAL_BASE_URL"
+    ]
   }
 }

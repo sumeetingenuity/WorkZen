@@ -41,15 +41,37 @@ class VectorDBService:
         self.tables = {}
         logger.info(f"VectorDB Service initialized at {self.db_path}")
     
-    async def _get_table(self, table_name: str):
+    def _get_vector_dim(self, table) -> Optional[int]:
+        try:
+            vector_field = table.schema.field("vector")
+            vector_type = vector_field.type
+            return getattr(vector_type, "list_size", None)
+        except Exception:
+            return None
+
+    async def _get_table(self, table_name: str, dim: Optional[int] = None):
         """Get or create a LanceDB table."""
         if table_name not in self.tables:
             if table_name in self.db.table_names():
                 self.tables[table_name] = self.db.open_table(table_name)
             else:
-                # Use a dummy embedding to determine dimension on first create
-                # Standard OpenAI small is 1536
-                dim = 1536 
+                schema = pa.schema([
+                    pa.field("vector", pa.list_(pa.float32(), dim or 1536)),
+                    pa.field("text", pa.string()),
+                    pa.field("metadata", pa.string()),
+                    pa.field("id", pa.string())
+                ])
+                self.tables[table_name] = self.db.create_table(table_name, schema=schema)
+
+        # Ensure dimension matches (even if table was just opened)
+        if dim is not None:
+            current_dim = self._get_vector_dim(self.tables[table_name])
+            if current_dim and current_dim != dim:
+                logger.warning(
+                    f"Vector dim mismatch for {table_name}: {current_dim} != {dim}. "
+                    "Recreating table."
+                )
+                self.db.drop_table(table_name)
                 schema = pa.schema([
                     pa.field("vector", pa.list_(pa.float32(), dim)),
                     pa.field("text", pa.string()),
@@ -76,7 +98,7 @@ class VectorDBService:
                 vector = await model_router.embed(text)
             
             # 2. Add to table
-            table = await self._get_table(collection_name)
+            table = await self._get_table(collection_name, dim=len(vector))
             
             import json
             data = [{
@@ -109,7 +131,7 @@ class VectorDBService:
                 vector = await model_router.embed(query)
             
             # 2. Search table
-            table = await self._get_table(collection_name)
+            table = await self._get_table(collection_name, dim=len(vector))
             
             # LanceDB search
             query_builder = table.search(vector).limit(n_results)

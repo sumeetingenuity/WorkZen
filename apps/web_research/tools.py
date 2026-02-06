@@ -13,7 +13,7 @@ from core.decorators import agent_tool
     log_response_to_orm=True,
     category="web_research"
 )
-async def search_web(query: str, max_results: int = 5) -> dict:
+async def search_web(query: str, max_results: int = 5, _secret_TAVILY_API_KEY: str = None) -> dict:
     """
     Search the web using Tavily AI search.
     
@@ -23,7 +23,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
     import httpx
     
     # Get secret (injected by decorator)
-    api_key = _secret_TAVILY_API_KEY  # noqa: F821
+    api_key = _secret_TAVILY_API_KEY
     
     async with httpx.AsyncClient() as client:
         response = await client.post(

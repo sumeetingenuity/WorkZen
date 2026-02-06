@@ -338,6 +338,13 @@ class TaskEntity(models.Model):
     project = models.CharField(max_length=100, null=True, blank=True)
     tags = models.JSONField(default=list, blank=True)
     
+    # DAG / Automation Fields
+    dependencies = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='blocked_by')
+    payload = models.JSONField(default=dict, blank=True, help_text="Input arguments for automated tasks")
+    result = models.JSONField(default=dict, blank=True, help_text="Output result of the task")
+    assigned_agent = models.CharField(max_length=100, null=True, blank=True, help_text="Agent responsible for execution")
+    is_automated = models.BooleanField(default=False, help_text="True if managed by Task Engine")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
