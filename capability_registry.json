@@ -1,0 +1,331 @@
+{
+  "storage": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "upload_file",
+        "description": "Upload and store a file. Returns file ID for later retrieval.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "description": {
+              "default": "",
+              "title": "Description",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "title": "upload_file_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_files",
+        "description": "List all stored files.",
+        "input_schema": {},
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  },
+  "web_research": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "search_web",
+        "description": "Search the web for information using AI-powered search. Returns relevant snippets and URLs.",
+        "input_schema": {
+          "properties": {
+            "query": {
+              "title": "Query",
+              "type": "string"
+            },
+            "max_results": {
+              "default": 5,
+              "title": "Max Results",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "search_web_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "browse_page",
+        "description": "Navigate to a URL and extract page content including text and links.",
+        "input_schema": {
+          "properties": {
+            "url": {
+              "title": "Url",
+              "type": "string"
+            },
+            "extract_links": {
+              "default": false,
+              "title": "Extract Links",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "title": "browse_page_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": [
+      "TAVILY_API_KEY"
+    ]
+  },
+  "communication": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "send_email",
+        "description": "Send an email using configured SMTP settings.",
+        "input_schema": {
+          "properties": {
+            "to": {
+              "title": "To",
+              "type": "string"
+            },
+            "subject": {
+              "title": "Subject",
+              "type": "string"
+            },
+            "body": {
+              "title": "Body",
+              "type": "string"
+            },
+            "html": {
+              "default": false,
+              "title": "Html",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "to",
+            "subject",
+            "body"
+          ],
+          "title": "send_email_Input",
+          "type": "object"
+        },
+        "requires_approval": true
+      },
+      {
+        "name": "check_inbox",
+        "description": "Check for new or recent communications (emails, messages).",
+        "input_schema": {
+          "properties": {
+            "limit": {
+              "default": 5,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          "title": "check_inbox_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": [
+      "EMAIL_HOST_PASSWORD",
+      "EMAIL_HOST_USER"
+    ]
+  },
+  "ocr": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "extract_pdf_text",
+        "description": "Extract text content from a PDF file. Supports OCR for scanned documents.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "use_ocr": {
+              "default": false,
+              "title": "Use Ocr",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "title": "extract_pdf_text_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "analyze_visual_document",
+        "description": "Analyze images or PDF layouts using Vision models. Extracts tables, form fields, and semantic structure.",
+        "input_schema": {
+          "properties": {
+            "file_path": {
+              "title": "File Path",
+              "type": "string"
+            },
+            "prompt": {
+              "default": "Analyze the layout and extract key data.",
+              "title": "Prompt",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path"
+          ],
+          "title": "analyze_visual_document_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  },
+  "productivity": {
+    "app": "apps",
+    "tools": [
+      {
+        "name": "store_data_entry",
+        "description": "Store structured information like contact details, company info, or custom records.",
+        "input_schema": {
+          "properties": {
+            "entry_type": {
+              "title": "Entry Type",
+              "type": "string"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "details": {
+              "additionalProperties": true,
+              "title": "Details",
+              "type": "object"
+            },
+            "tags": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Tags"
+            }
+          },
+          "required": [
+            "entry_type",
+            "name",
+            "details"
+          ],
+          "title": "store_data_entry_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "search_data_entry",
+        "description": "Search for stored structured information (contacts, companies, etc.).",
+        "input_schema": {
+          "properties": {
+            "query": {
+              "title": "Query",
+              "type": "string"
+            },
+            "entry_type": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Entry Type"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "title": "search_data_entry_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "manage_calendar_event",
+        "description": "Create or update a calendar event (appointment, meeting, reminder).",
+        "input_schema": {
+          "properties": {
+            "title": {
+              "title": "Title",
+              "type": "string"
+            },
+            "start_time": {
+              "title": "Start Time",
+              "type": "string"
+            },
+            "end_time": {
+              "title": "End Time",
+              "type": "string"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "",
+              "title": "Description"
+            }
+          },
+          "required": [
+            "title",
+            "start_time",
+            "end_time"
+          ],
+          "title": "manage_calendar_event_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      },
+      {
+        "name": "list_calendar",
+        "description": "List upcoming calendar events.",
+        "input_schema": {
+          "properties": {},
+          "title": "list_calendar_Input",
+          "type": "object"
+        },
+        "requires_approval": false
+      }
+    ],
+    "requires": []
+  }
+}
