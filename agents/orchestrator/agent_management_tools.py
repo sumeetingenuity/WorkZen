@@ -3,6 +3,7 @@ Agent Management Tools.
 
 Allows the orchestrator to create and configure custom agents, skills, and plugins.
 """
+import asyncio
 import logging
 from typing import List, Optional, Dict, Any
 from core.decorators import agent_tool
@@ -66,7 +67,9 @@ async def create_custom_agent(
 async def run_opencode_command(
     instruction: str, 
     model: Optional[str] = None, 
-    provider: Optional[str] = None
+    provider: Optional[str] = None,
+    _user_id: Optional[str] = None,
+    _session_id: Optional[str] = None
 ) -> dict:
     """
     Run an autonomous coding task using the OpenCode CLI.
@@ -77,6 +80,9 @@ async def run_opencode_command(
     import subprocess
     import os
     import json
+    
+    logger.info(f"[OPENCODE] run_opencode_command called with instruction: {instruction[:100]}...")
+    logger.info(f"[OPENCODE] model={model}, provider={provider}")
     
     # Get provider and model from vault/env, or use provided values
     vault_provider = os.environ.get("OPENCODE_PROVIDER", "anthropic")
@@ -208,16 +214,27 @@ async def run_opencode_command(
             or "xml" in lowered
         )
 
-    def _run_cmd(command: list[str]) -> tuple[int, str, str]:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+    async def _run_cmd_async(command: list[str]) -> tuple[int, str, str]:
+        """Run command asynchronously without blocking the event loop.
+        
+        Note: No timeout is applied here since OpenCode tasks can take 10-30+ minutes.
+        This function is called from a background task, so it can run indefinitely.
+        Users can cancel the task if needed via the task tracker.
+        """
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             env=env
         )
-        stdout, stderr = process.communicate(timeout=300) # 5 min timeout for coding tasks
-        return process.returncode, stdout, stderr
+        # No timeout - OpenCode can take 10-30+ minutes for complex tasks
+        # Since this runs in a background task, it won't block the main event loop
+        stdout_bytes, stderr_bytes = await process.communicate()
+        return (
+            process.returncode,
+            stdout_bytes.decode("utf-8", errors="replace"),
+            stderr_bytes.decode("utf-8", errors="replace"),
+        )
 
     # Support for systems where opencode might not be in PATH yet
     opencode_bin = os.path.expanduser("~/.opencode/bin/opencode")
@@ -227,20 +244,25 @@ async def run_opencode_command(
     fallback_cmd = [cmd_path, "--non-interactive", instruction]
         
     try:
-        logger.info(f"Executing OpenCode command: {instruction[:100]}...")
+        logger.info(f"[OPENCODE] Executing OpenCode command: {instruction[:100]}...")
+        logger.info(f"[OPENCODE] Command path: {cmd_path}")
+        logger.info(f"[OPENCODE] Full command: {primary_cmd}")
         
-        # Run in a subshell to capture output
-        returncode, stdout, stderr = _run_cmd(primary_cmd)
-        logger.info(f"OpenCode command completed with return code: {returncode}")
+        # Run asynchronously to avoid blocking the event loop
+        returncode, stdout, stderr = await _run_cmd_async(primary_cmd)
+        logger.info(f"[OPENCODE] Command completed with return code: {returncode}")
+        logger.info(f"[OPENCODE] stdout length: {len(stdout)}, stderr length: {len(stderr)}")
         
         if returncode == 0:
-            logger.info(f"OpenCode success, output length: {len(stdout)} chars")
+            logger.info(f"[OPENCODE] Success, output length: {len(stdout)} chars")
             return {"status": "success", "output": stdout}
 
         # Retry using non-interactive flag for known XML/entity parsing issues
         if _is_parse_entity_error(stderr):
-            retry_returncode, retry_stdout, retry_stderr = _run_cmd(fallback_cmd)
+            logger.info(f"[OPENCODE] Parse entity error detected, retrying with fallback command")
+            retry_returncode, retry_stdout, retry_stderr = await _run_cmd_async(fallback_cmd)
             if retry_returncode == 0:
+                logger.info(f"[OPENCODE] Fallback command succeeded")
                 return {"status": "success", "output": retry_stdout}
 
             friendly = (
@@ -249,18 +271,19 @@ async def run_opencode_command(
                 "Try a different model/provider or update the OpenCode CLI. "
                 "You can also check logs at ~/.local/share/opencode/log/."
             )
+            logger.error(f"[OPENCODE] Fallback also failed: {retry_stderr[:200]}")
             return {
                 "status": "error",
                 "error": retry_stderr or stderr or "Unknown error",
                 "hint": friendly
             }
 
-        logger.warning(f"OpenCode failed with return code {returncode}, stderr: {stderr[:500]}")
+        logger.warning(f"[OPENCODE] Failed with return code {returncode}, stderr: {stderr[:500]}")
         return {"status": "error", "error": stderr or "Unknown error"}
             
-    except subprocess.TimeoutExpired as e:
-        logger.error(f"OpenCode task timed out: {e}")
+    except asyncio.TimeoutError:
+        logger.error(f"[OPENCODE] Task timed out after 5 minutes")
         return {"status": "error", "error": "OpenCode task timed out after 5 minutes"}
     except Exception as e:
-        logger.exception(f"OpenCode execution failed with exception: {e}")
+        logger.exception(f"[OPENCODE] Execution failed with exception: {e}")
         return {"status": "error", "error": f"OpenCode execution failed: {str(e)}"}

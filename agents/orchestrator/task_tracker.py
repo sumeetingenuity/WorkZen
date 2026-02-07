@@ -122,6 +122,10 @@ class TaskTracker:
         """
         task_id = str(uuid.uuid4())[:8]
         
+        logger.info(f"[TASK TRACKER] Creating task {task_id}")
+        logger.info(f"[TASK TRACKER] user_id={user_id}, tool_name={tool_name}")
+        logger.info(f"[TASK TRACKER] executor={executor}")
+        
         task = TrackedTask(
             task_id=task_id,
             user_id=user_id,
@@ -139,7 +143,9 @@ class TaskTracker:
         self._user_tasks[user_id].append(task_id)
         
         # Start the task asynchronously
+        logger.info(f"[TASK TRACKER] Creating asyncio task for {task_id}")
         task._task = asyncio.create_task(self._execute_task(task, executor))
+        logger.info(f"[TASK TRACKER] asyncio task created: {task._task}")
         
         logger.info(f"[TASK TRACKER] Started task {task_id} for user {user_id}: {description}")
         
@@ -152,9 +158,12 @@ class TaskTracker:
             task.started_at = datetime.now()
             task.add_progress("Task started")
             
+            logger.info(f"[TASK TRACKER] Executing task {task.task_id} with executor: {executor}")
+            
             # Execute the task
             result = await executor(task)
             
+            logger.info(f"[TASK TRACKER] Task {task.task_id} completed successfully")
             task.status = TaskStatus.COMPLETED
             task.completed_at = datetime.now()
             task.result = result
@@ -164,17 +173,17 @@ class TaskTracker:
             await self._notify_completion(task)
             
         except asyncio.CancelledError:
+            logger.warning(f"[TASK TRACKER] Task {task.task_id} was cancelled")
             task.status = TaskStatus.CANCELLED
             task.completed_at = datetime.now()
             task.add_progress("Task cancelled")
-            logger.info(f"[TASK TRACKER] Task {task.task_id} cancelled")
             
         except Exception as e:
+            logger.exception(f"[TASK TRACKER] Task {task.task_id} failed with exception: {e}")
             task.status = TaskStatus.FAILED
             task.completed_at = datetime.now()
             task.error = str(e)
             task.add_progress(f"Task failed: {str(e)}")
-            logger.exception(f"[TASK TRACKER] Task {task.task_id} failed: {e}")
             
             # Notify user of failure
             await self._notify_completion(task)

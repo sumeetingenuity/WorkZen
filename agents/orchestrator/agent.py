@@ -819,10 +819,14 @@ You can now use these tools! Try: "Create a new client named John Doe"
         
         tool = capability_registry.get_tool(intent.tool_name)
         if not tool:
+            logger.error(f"[_handle_tool_use] Tool '{intent.tool_name}' not found in registry")
+            logger.error(f"[_handle_tool_use] Available tools: {capability_registry.list_tools()}")
             return OrchestratorResult(
                 session_id=session_id,
                 response=f"Tool '{intent.tool_name}' not found."
             )
+        
+        logger.info(f"[_handle_tool_use] Tool retrieved: {tool}")
         
         # Inject custom agent model if available and not overridden
         if custom_agent and custom_agent.model_id and "model" not in intent.parameters:
@@ -852,9 +856,14 @@ You can now use these tools! Try: "Create a new client named John Doe"
             elif "query" in intent.parameters:
                 description = f"Searching: {intent.parameters['query'][:100]}"
             
+            logger.info(f"[ORCHESTRATOR] Creating background task for {intent.tool_name}")
+            logger.info(f"[ORCHESTRATOR] Tool function: {tool}")
+            logger.info(f"[ORCHESTRATOR] Parameters: {intent.parameters}")
+            
             async def task_executor(tracked_task):
                 """Execute the tool and update progress."""
                 try:
+                    logger.info(f"[ORCHESTRATOR] Task executor started for {intent.tool_name}")
                     tracked_task.add_progress(f"Starting {intent.tool_name}...")
                     
                     # Special handling for OpenCode CLI
@@ -862,11 +871,13 @@ You can now use these tools! Try: "Create a new client named John Doe"
                         tracked_task.add_progress("Initializing OpenCode CLI...")
                         tracked_task.add_progress("This may take several minutes for complex tasks")
                     
+                    logger.info(f"[ORCHESTRATOR] Calling tool function: {tool}")
                     result = await tool(
                         _user_id=user_id,
                         _session_id=session_id,
                         **intent.parameters
                     )
+                    logger.info(f"[ORCHESTRATOR] Tool function returned: {type(result)}")
                     
                     tracked_task.add_progress("Tool execution completed")
                     
@@ -890,7 +901,7 @@ You can now use these tools! Try: "Create a new client named John Doe"
                         
                 except Exception as e:
                     tracked_task.add_progress(f"Exception: {str(e)}")
-                    logger.exception(f"Task executor failed for {intent.tool_name}")
+                    logger.exception(f"[ORCHESTRATOR] Task executor failed for {intent.tool_name}")
                     return f"❌ **Exception:** {str(e)}"
             
             task_id = await task_tracker.start_task(
@@ -901,6 +912,8 @@ You can now use these tools! Try: "Create a new client named John Doe"
                 parameters=intent.parameters,
                 executor=task_executor
             )
+            
+            logger.info(f"[ORCHESTRATOR] Background task created with ID: {task_id}")
             
             # Customize message based on tool
             if intent.tool_name == "run_opencode_command":
@@ -921,7 +934,8 @@ You can check progress anytime:
 • `check_task_status(task_id='{task_id}')`
 • `list_my_tasks(active_only=True)`
 
-Feel free to ask me other questions while I work!"""
+Feel free to ask me other questions while I work!""",
+                pending_task_id=task_id
             )
 
         # Execute synchronously for quick tools
