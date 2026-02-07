@@ -41,7 +41,7 @@ async def list_documents(category: str = None, project: str = None):
     description="Run a 'Sweeper' to summarize all activity from today and generate a briefing report.",
     category="system"
 )
-async def generate_daily_briefing(_user_id: str = None):
+async def generate_daily_briefing(_user_id: str = None, _session_id: str = None):
     """Generates the AI-synthesized daily briefing."""
     report = await briefing_service.generate_daily_report(_user_id)
     return {"briefing_report": report}

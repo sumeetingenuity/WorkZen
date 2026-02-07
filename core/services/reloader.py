@@ -115,9 +115,16 @@ class DynamicAppReloader:
             await sync_to_async(call_command)('makemigrations', app_name)
             await sync_to_async(call_command)('migrate', app_name)
             logger.info(f"Migrations applied for {app_name}")
+        except SystemExit as e:
+            # makemigrations exits with code 2 when no changes detected
+            if e.code == 2:
+                logger.info(f"No migration changes detected for {app_name}")
+            else:
+                logger.error(f"Migration command exited with code {e.code}")
+                raise
         except Exception as e:
             logger.error(f"Migration error during reload: {e}")
-            raise e
+            raise
 
 # Singleton instance
 app_reloader = DynamicAppReloader()

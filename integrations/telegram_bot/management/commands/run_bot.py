@@ -78,8 +78,25 @@ class Command(BaseCommand):
                 return obj
 
             await sync_to_async(_save)()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to upsert telegram user: {e}")
+
+    async def _safe_reply_markdown(self, update: Update, text: str):
+        """
+        Safely send a message with Markdown formatting.
+        Falls back to plain text if Markdown parsing fails.
+        """
+        try:
+            await update.message.reply_text(text, parse_mode="Markdown")
+        except Exception as parse_error:
+            # If Markdown parsing fails (e.g., due to special characters),
+            # retry without parse_mode
+            error_str = str(parse_error).lower()
+            if "parse" in error_str or "entity" in error_str or "can't" in error_str:
+                logger.warning(f"[TELEGRAM] Markdown parsing failed, retrying without parse_mode: {parse_error}")
+                await update.message.reply_text(text)
+            else:
+                raise
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.text:
@@ -107,7 +124,7 @@ class Command(BaseCommand):
             except Exception:
                 pass
                 
-            await update.message.reply_text(f"✅ Securely stored: `{secret_name}`. You can now resume your request.", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, f"✅ Securely stored: `{secret_name}`. You can now resume your request.")
             return
 
         # 1. Show "typing..."
@@ -115,11 +132,13 @@ class Command(BaseCommand):
 
         try:
             # 2. Process via Orchestrator
+            logger.info(f"[TELEGRAM] Sending message to orchestrator for user {user_id}")
             result = await orchestrator_agent.process(
                 user_id=user_id,
                 message=message_text,
                 session_id=session_id
             )
+            logger.info(f"[TELEGRAM] Received result from orchestrator, response length: {len(result.response) if result.response else 0}")
 
             # 3. Handle result highlights (approvals, etc)
             response_text = result.response
@@ -138,7 +157,9 @@ class Command(BaseCommand):
                 response_text += f"\n\n🔐 *Approval Required*: {result.pending_task_id}"
 
             # 4. Reply
-            await update.message.reply_text(response_text, parse_mode="Markdown")
+            logger.info(f"[TELEGRAM] Sending response to user {user_id}, length: {len(response_text)}")
+            await self._safe_reply_markdown(update, response_text)
+            logger.info(f"[TELEGRAM] Response sent successfully to user {user_id}")
 
         except Exception as e:
             logger.exception("Error in telegram handler")
@@ -180,7 +201,7 @@ class Command(BaseCommand):
             user_id = f"tg_{update.effective_user.id}"
             session_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"tg_session_{update.effective_chat.id}"))
             
-            await update.message.reply_text(f"✨ *Transcribed*: _{transcription}_", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, f"✨ *Transcribed*: _{transcription}_")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
             result = await orchestrator_agent.process(
@@ -245,7 +266,7 @@ class Command(BaseCommand):
             user_id = f"tg_{update.effective_user.id}"
             session_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"tg_session_{update.effective_chat.id}"))
 
-            await update.message.reply_text(f"🖼️ Image stored at: `{stored_path}`", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, f"🖼️ Image stored at: `{stored_path}`")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
             caption = update.message.caption or ""
@@ -318,7 +339,7 @@ class Command(BaseCommand):
             caption = update.message.caption or ""
             message = f"[FILE STORED]\nType: {file_type}\nName: {file_name}\nMime: {mime_type}\nPath: {stored_path}\nCaption: {caption}\nNote: Stored only. Processing happens only on request."
 
-            await update.message.reply_text(f"📎 Document stored at: `{stored_path}`", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, f"📎 Document stored at: `{stored_path}`")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
             result = await orchestrator_agent.process(
@@ -381,13 +402,13 @@ class Command(BaseCommand):
             caption = update.message.caption or ""
             message = f"[FILE STORED]\nType: video\nName: {file_name}\nMime: {mime_type}\nPath: {stored_path}\nCaption: {caption}\nNote: Stored only. Processing happens only on request."
 
-            await update.message.reply_text(f"🎞️ Video stored at: `{stored_path}`", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, f"🎞️ Video stored at: `{stored_path}`")
             result = await orchestrator_agent.process(
                 user_id=user_id,
                 message=message,
                 session_id=session_id
             )
-            await update.message.reply_text(result.response, parse_mode="Markdown")
+            await self._safe_reply_markdown(update, result.response)
         except Exception as e:
             logger.exception("Error in video handler")
             await update.message.reply_text(f"❌ Video processing failed: {str(e)}")
@@ -395,13 +416,13 @@ class Command(BaseCommand):
     async def handle_git_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show current git status."""
         status = git_service.get_status()
-        await update.message.reply_text(f"📂 *Current Development Status*:\n\n`{status or 'Clean codebase'}`", parse_mode="Markdown")
+        await self._safe_reply_markdown(update, f"📂 *Current Development Status*:\n\n`{status or 'Clean codebase'}`")
 
     async def handle_rollback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Revert to the previous checkpoint."""
         # Simple confirmation if no arg provided
         success = git_service.rollback()
         if success:
-            await update.message.reply_text("🔙 *Rollback Successful*. Codebase reverted to the last stable checkpoint.", parse_mode="Markdown")
+            await self._safe_reply_markdown(update, "🔙 *Rollback Successful*. Codebase reverted to the last stable checkpoint.")
         else:
             await update.message.reply_text("❌ Rollback failed.")

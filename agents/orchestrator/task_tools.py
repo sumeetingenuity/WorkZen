@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 @agent_tool(
     name="create_task",
-    description="Create a new task or todo item in the system. Use due_date for proactive reminders.",
+    description="""Create a new task or todo item in the system. Use due_date for proactive reminders.
+    
+    IMPORTANT: due_date MUST be in format 'YYYY-MM-DD HH:MM:SS' (e.g., '2026-02-07 15:30:00').
+    For relative times like "in 15 minutes" or "tomorrow at 3pm", you MUST calculate the absolute datetime first.
+    Use Python datetime or system date commands to calculate the exact datetime before calling this tool.""",
     category="system"
 )
 async def create_task(
@@ -20,7 +24,8 @@ async def create_task(
     priority: int = 2,
     due_date: Optional[str] = None,
     project: Optional[str] = None,
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ):
     """Creates a persistent task."""
     task = await TaskEntity.objects.acreate(
@@ -46,7 +51,7 @@ async def create_task(
     description="List active tasks for the current user. Filters: status, project.",
     category="system"
 )
-async def list_tasks(status: str = 'todo', project: str = None, _user_id: str = None):
+async def list_tasks(status: str = 'todo', project: str = None, _user_id: str = None, _session_id: str = None):
     """Lists tasks for the user."""
     qs = TaskEntity.objects.filter(user_id=_user_id, status=status)
     if project:
@@ -72,7 +77,7 @@ async def list_tasks(status: str = 'todo', project: str = None, _user_id: str = 
     description="Mark a task as completed.",
     category="system"
 )
-async def complete_task(task_id: str, _user_id: str = None):
+async def complete_task(task_id: str, _user_id: str = None, _session_id: str = None):
     """Marks a task as done."""
     try:
         task = await TaskEntity.objects.aget(id=task_id, user_id=_user_id)

@@ -12,7 +12,22 @@ logger = logging.getLogger(__name__)
 
 @agent_tool(
     name="store_data_entry",
-    description="Store structured information like contact details, company info, or custom records.",
+    description="""Store structured information like contact details, company info, notes, or custom records.
+    
+    REQUIRED PARAMETERS:
+    - entry_type (str): Type of entry (e.g., 'contact', 'note', 'company', 'image_caption', 'document')
+    - name (str): Name or title of the entry (e.g., person's name, document title)
+    - details (dict): The actual data to store as key-value pairs
+    
+    OPTIONAL:
+    - tags (list): List of tags for categorization
+    
+    EXAMPLES:
+    1. Store contact: entry_type='contact', name='John Doe', details={'phone': '555-1234', 'email': 'john@example.com'}
+    2. Store note: entry_type='note', name='Meeting Notes', details={'content': 'Discussed project timeline', 'date': '2026-02-07'}
+    3. Store image caption: entry_type='image_caption', name='Photo Description', details={'caption': 'Sunset at the beach', 'file_id': '123'}
+    
+    IMPORTANT: Always provide ALL required parameters. Do not call with empty dict.""",
     category="productivity"
 )
 async def store_data_entry(
@@ -20,7 +35,8 @@ async def store_data_entry(
     name: str,
     details: Dict[str, Any],
     tags: Optional[List[str]] = None,
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ) -> dict:
     """
     Stores a generic entity for persistent structured memory.
@@ -51,7 +67,8 @@ async def store_data_entry(
 async def search_data_entry(
     query: str,
     entry_type: Optional[str] = None,
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ) -> dict:
     """Searches the GenericEntity registry."""
     from django.db.models import Q
@@ -85,7 +102,8 @@ async def manage_calendar_event(
     start_time: str,
     end_time: str,
     description: Optional[str] = "",
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ) -> dict:
     """
     Core calendar management tool. 
@@ -116,7 +134,7 @@ async def manage_calendar_event(
     description="List upcoming calendar events.",
     category="productivity"
 )
-async def list_calendar(_user_id: str = None) -> dict:
+async def list_calendar(_user_id: str = None, _session_id: str = None) -> dict:
     """Lists all calendar events from the generic repository."""
     qs = GenericEntity.objects.filter(user_id=_user_id, entity_type="calendar_event")
     
@@ -143,6 +161,7 @@ async def list_calendar(_user_id: str = None) -> dict:
 async def check_inbox(
     limit: int = 5,
     _user_id: str = None,
+    _session_id: str = None,
     _secret_EMAIL_HOST_USER: str = None,
     _secret_EMAIL_HOST_PASSWORD: str = None
 ) -> dict:

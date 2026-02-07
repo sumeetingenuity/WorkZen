@@ -504,35 +504,94 @@ Requirements:
 7. SECRET ENGINE: Secrets are injected at runtime by SecretEngine; NEVER read `.env` or scan environment files.
 8. RUNTIME SECRETS: Access secrets ONLY via injected `_secret_NAME` parameters (add them to the function signature).
 
-TOOL TEMPLATE (use this pattern for any tool with secrets):
+=== CRITICAL: TOOL DESCRIPTION FORMAT ===
+Every tool MUST have a comprehensive description following this EXACT format:
+
 @agent_tool(
     name="tool_name",
-    description="What the tool does",
-    secrets=["PROVIDER_API_KEY"],
-    log_response_to_orm=True,
-    category="{app_name}"
+    description=\"\"\"Brief one-line summary of what the tool does.
+    
+    REQUIRED PARAMETERS:
+    - param1 (type): Description with example (e.g., 'John Doe')
+    - param2 (type): Description with example
+    
+    OPTIONAL PARAMETERS:
+    - param3 (type, default=value): Description
+    
+    EXAMPLES:
+    1. Basic usage: tool_name(param1='value1', param2='value2')
+    2. With optional: tool_name(param1='value1', param2='value2', param3='value3')
+    
+    RETURNS:
+    - status: Success/error status
+    - data: The result data
+    - display_markdown: User-friendly formatted output
+    
+    IMPORTANT: [Any critical notes about usage or constraints]\"\"\",
+    category="{app_name}",
+    log_response_to_orm=True
 )
 async def tool_name(
-    required_arg: str,
-    optional_arg: str = "default",
-    _secret_PROVIDER_API_KEY: str = None
+    param1: str,
+    param2: dict,
+    param3: Optional[str] = None,
+    _user_id: str = None,
+    _session_id: str = None
 ) -> dict:
-    # Use the injected _secret_PROVIDER_API_KEY directly.
-    # Do not read from .env or os.environ here.
-    ...
+    \"\"\"Internal docstring.\"\"\"
+    # Implementation
+    return {{
+        "status": "success",
+        "data": {{}},
+        "display_markdown": "✅ **Action completed**"
+    }}
+
+WHY THIS MATTERS:
+- The LLM needs explicit parameter documentation to call tools correctly
+- Without examples, the LLM may pass empty dicts or wrong types
+- Clear descriptions prevent validation errors and improve reliability
+
+TOOL DESCRIPTION CHECKLIST:
+✓ One-line summary at top
+✓ REQUIRED PARAMETERS section with types and examples
+✓ OPTIONAL PARAMETERS section (if any)
+✓ EXAMPLES section with 1-3 concrete examples showing actual usage
+✓ RETURNS section explaining output structure
+✓ IMPORTANT section with critical notes
+✓ For dict/list params, show expected structure
+✓ Use realistic example values, not placeholders
+
+EXAMPLE - Good Tool Description:
+@agent_tool(
+    name="create_client",
+    description=\"\"\"Create a new client record in the system.
+    
+    REQUIRED PARAMETERS:
+    - name (str): Full name of the client (e.g., 'John Smith')
+    - case_type (str): Type of case - must be one of: 'criminal', 'civil', 'family'
+    
+    OPTIONAL PARAMETERS:
+    - email (str): Client email address
+    - phone (str): Contact phone number
+    
+    EXAMPLES:
+    1. Basic: create_client(name='John Smith', case_type='criminal')
+    2. With contact: create_client(name='Jane Doe', case_type='civil', email='jane@example.com', phone='555-1234')
+    
+    RETURNS:
+    - status: 'created'
+    - client_id: UUID of the new client
+    - display_markdown: Success message
+    
+    IMPORTANT: case_type must be one of the valid types listed above\"\"\",
+    category="{app_name}",
+    log_response_to_orm=True
+)
 
 Import the @agent_tool decorator from core.decorators:
 from core.decorators import agent_tool
 
-Each tool should be async and decorated like:
-@agent_tool(
-    name="create_entity",
-    description="Description for LLM",
-    log_response_to_orm=True,
-    category="{app_name}"
-)
-async def create_entity(field1: str, field2: str) -> dict:
-    ...
+Each tool should be async and decorated with comprehensive descriptions as shown above.
 """
         
         return await self.generate(

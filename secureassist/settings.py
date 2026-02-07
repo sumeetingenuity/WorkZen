@@ -207,6 +207,12 @@ TASKS = {
 # Format: ('cron_expression', 'path.to.function', 'job_name')
 
 CRONJOBS = [
+    # Check for due reminders every minute
+    ('* * * * *', 'core.tasks.check_due_reminders', 'check_reminders'),
+    
+    # Execute scheduled tasks every minute
+    ('* * * * *', 'core.tasks.execute_scheduled_tasks', 'execute_scheduled'),
+    
     # Run context compression every hour
     ('0 * * * *', 'agents.tasks.compress_old_sessions', 'compress_sessions'),
     
@@ -219,6 +225,7 @@ CRONJOBS = [
     # Daily audit log summary
     ('0 1 * * *', 'core.tasks.generate_audit_summary', 'audit_summary'),
 ]
+
 
 
 # Password validation

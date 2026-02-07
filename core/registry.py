@@ -143,6 +143,29 @@ class CapabilityRegistry:
                 if tool_names is None or tool['name'] in tool_names:
                     schemas.append(tool)
         return schemas
+    
+    def get_tools_for_function_calling(self) -> List[dict]:
+        """
+        Get tools in OpenAI function calling format.
+        
+        Returns a list of tool definitions compatible with OpenAI's function calling API.
+        """
+        tools = []
+        for cap_data in self._registry.values():
+            for tool in cap_data['tools']:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool['name'],
+                        "description": tool['description'],
+                        "parameters": tool.get('input_schema', {
+                            "type": "object",
+                            "properties": {},
+                            "required": []
+                        })
+                    }
+                })
+        return tools
 
 
 # Singleton instance

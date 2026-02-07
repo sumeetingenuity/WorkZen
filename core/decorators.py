@@ -94,6 +94,9 @@ def agent_tool(
                 continue
             if param_name.startswith('_secret_'):
                 continue
+            # Skip internal parameters that are injected by the orchestrator
+            if param_name in ['_user_id', '_session_id']:
+                continue
                 
             field_type = type_hints.get(param_name, Any)
             if param.default is param.empty:
@@ -155,24 +158,39 @@ def agent_tool(
                     }
                     validated_input = InputModel(**validation_kwargs)
                     validated_dict = validated_input.model_dump()
+                    # Add back secrets
                     for k, v in kwargs.items():
                         if k.startswith('_secret_'):
                             validated_dict[k] = v
                 else:
                     validated_dict = kwargs
                 
-                # 5. Execute with timeout
+                # Add back internal parameters (_user_id, _session_id)
+                if user_id is not None:
+                    validated_dict['_user_id'] = user_id
+                if session_id is not None:
+                    validated_dict['_session_id'] = session_id
+                
+                # 5. Execute with timeout (if specified)
                 if asyncio.iscoroutinefunction(func):
-                    result = await asyncio.wait_for(
-                        func(*args, **validated_dict),
-                        timeout=timeout_seconds
-                    )
+                    if timeout_seconds is not None:
+                        result = await asyncio.wait_for(
+                            func(*args, **validated_dict),
+                            timeout=timeout_seconds
+                        )
+                    else:
+                        # No timeout - run indefinitely
+                        result = await func(*args, **validated_dict)
                 else:
                     loop = asyncio.get_event_loop()
-                    result = await asyncio.wait_for(
-                        loop.run_in_executor(None, lambda: func(*args, **validated_dict)),
-                        timeout=timeout_seconds
-                    )
+                    if timeout_seconds is not None:
+                        result = await asyncio.wait_for(
+                            loop.run_in_executor(None, lambda: func(*args, **validated_dict)),
+                            timeout=timeout_seconds
+                        )
+                    else:
+                        # No timeout - run indefinitely
+                        result = await loop.run_in_executor(None, lambda: func(*args, **validated_dict))
                 
                 execution_time_ms = int((time.time() - start_time) * 1000)
                 

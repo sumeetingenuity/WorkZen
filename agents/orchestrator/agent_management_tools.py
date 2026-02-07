@@ -3,11 +3,14 @@ Agent Management Tools.
 
 Allows the orchestrator to create and configure custom agents, skills, and plugins.
 """
+import logging
 from typing import List, Optional, Dict, Any
 from core.decorators import agent_tool
 from core.services.secrets import SecretEngine
 from core.models import CustomAgent, AgentSkill, AgentPlugin
 from asgiref.sync import sync_to_async
+
+logger = logging.getLogger(__name__)
 
 @agent_tool(
     name="create_agent_skill",
@@ -33,7 +36,8 @@ async def create_custom_agent(
     skill_names: List[str], 
     voice_profile: str = "alloy",
     model: Optional[str] = None,
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ) -> dict:
     agent = await sync_to_async(CustomAgent.objects.create)(
         user_id=_user_id,
@@ -55,8 +59,9 @@ async def create_custom_agent(
 
 @agent_tool(
     name="run_opencode_command",
-    description="Run an autonomous coding task using the OpenCode CLI.",
-    category="coding"
+    description="Run an autonomous coding task using the OpenCode CLI. This is a long-running task that executes in the background.",
+    category="coding",
+    timeout_seconds=None  # No timeout - runs in background
 )
 async def run_opencode_command(
     instruction: str, 
@@ -222,9 +227,14 @@ async def run_opencode_command(
     fallback_cmd = [cmd_path, "--non-interactive", instruction]
         
     try:
+        logger.info(f"Executing OpenCode command: {instruction[:100]}...")
+        
         # Run in a subshell to capture output
         returncode, stdout, stderr = _run_cmd(primary_cmd)
+        logger.info(f"OpenCode command completed with return code: {returncode}")
+        
         if returncode == 0:
+            logger.info(f"OpenCode success, output length: {len(stdout)} chars")
             return {"status": "success", "output": stdout}
 
         # Retry using non-interactive flag for known XML/entity parsing issues
@@ -245,9 +255,12 @@ async def run_opencode_command(
                 "hint": friendly
             }
 
+        logger.warning(f"OpenCode failed with return code {returncode}, stderr: {stderr[:500]}")
         return {"status": "error", "error": stderr or "Unknown error"}
             
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "error": "OpenCode task timed out"}
+    except subprocess.TimeoutExpired as e:
+        logger.error(f"OpenCode task timed out: {e}")
+        return {"status": "error", "error": "OpenCode task timed out after 5 minutes"}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.exception(f"OpenCode execution failed with exception: {e}")
+        return {"status": "error", "error": f"OpenCode execution failed: {str(e)}"}

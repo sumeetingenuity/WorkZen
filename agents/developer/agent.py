@@ -200,10 +200,50 @@ Description: {app_spec.description}
 7. NO ENV SCANNING: DO NOT search for or read `.env` files. Sensitive keys are stored in a secure OUT-OF-WORKSPACE vault inaccessible to you.
 8. NO LLM INGESTION: Tool results are for the USER, not for the LLM.
 
+=== TOOL DESCRIPTION FORMAT (CRITICAL) ===
+Every tool MUST have a comprehensive description following this format:
+
+@agent_tool(
+    name="tool_name",
+    description=\"\"\"Brief one-line summary.
+    
+    REQUIRED PARAMETERS:
+    - param1 (type): Description with example (e.g., 'John Doe')
+    - param2 (type): Description with example
+    
+    OPTIONAL PARAMETERS:
+    - param3 (type, default=value): Description
+    
+    EXAMPLES:
+    1. Basic: tool_name(param1='value1', param2='value2')
+    2. Advanced: tool_name(param1='value1', param2='value2', param3='value3')
+    
+    RETURNS:
+    - status: Success/error indicator
+    - data: Result data
+    - display_markdown: User-friendly output
+    
+    IMPORTANT: [Critical notes]\"\"\",
+    category="{app_spec.name}",
+    log_response_to_orm=True
+)
+
+WHY: The LLM needs explicit parameter docs to call tools correctly. Without examples, 
+it may pass empty dicts or wrong types, causing validation errors.
+
+CHECKLIST FOR EACH TOOL:
+✓ One-line summary
+✓ REQUIRED PARAMETERS with types and examples
+✓ OPTIONAL PARAMETERS (if any)
+✓ EXAMPLES with 1-3 concrete usage examples
+✓ RETURNS explaining output structure
+✓ IMPORTANT with critical notes
+✓ For dict/list params, show expected structure
+
 === REQUIRED FILES (MUST CREATE ALL) ===
 1. apps.py with AppConfig class name {app_spec.name.title()}Config and name = "apps.{app_spec.name}"
 2. models.py with ALL models defined in the spec
-3. tools.py with @agent_tool functions for every tool in the spec
+3. tools.py with @agent_tool functions for every tool in the spec (with comprehensive descriptions!)
 4. admin.py registering all models
 
 === MODELS ===
@@ -313,6 +353,71 @@ Description: {app_spec.description}
                     "DateField": "str",
                 }
                 return mapping.get(field.field_type.value, "str")
+            
+            def _build_comprehensive_description(tool, entity=None) -> str:
+                """Build a comprehensive tool description with parameters and examples."""
+                desc_lines = [tool.description]
+                desc_lines.append("")
+                
+                # Build parameter documentation
+                required_params = []
+                optional_params = []
+                
+                if tool.operation in {"read", "update", "delete"}:
+                    required_params.append("- id (str): UUID of the record to operate on")
+                
+                if tool.operation in {"create", "update"} and entity:
+                    for field in entity.fields:
+                        param_type = _py_type(field)
+                        param_desc = f"- {field.name} ({param_type}): {field.name.replace('_', ' ').title()}"
+                        if field.required:
+                            required_params.append(param_desc)
+                        else:
+                            optional_params.append(f"{param_desc} (optional)")
+                
+                if tool.operation == "search":
+                    optional_params.append("- limit (int, default=20): Maximum number of results")
+                
+                if required_params:
+                    desc_lines.append("REQUIRED PARAMETERS:")
+                    desc_lines.extend(required_params)
+                    desc_lines.append("")
+                
+                if optional_params:
+                    desc_lines.append("OPTIONAL PARAMETERS:")
+                    desc_lines.extend(optional_params)
+                    desc_lines.append("")
+                
+                # Add examples
+                desc_lines.append("EXAMPLES:")
+                if tool.operation == "create" and entity:
+                    example_params = []
+                    for field in entity.fields[:3]:  # First 3 fields as example
+                        if field.required:
+                            example_val = "'example_value'" if _py_type(field) == "str" else "123"
+                            example_params.append(f"{field.name}={example_val}")
+                    if example_params:
+                        desc_lines.append(f"1. {tool.name}({', '.join(example_params)})")
+                elif tool.operation == "read":
+                    desc_lines.append(f"1. {tool.name}(id='123e4567-e89b-12d3-a456-426614174000')")
+                elif tool.operation == "search":
+                    desc_lines.append(f"1. {tool.name}(limit=10)")
+                desc_lines.append("")
+                
+                # Add returns
+                desc_lines.append("RETURNS:")
+                if tool.operation == "create":
+                    desc_lines.append("- id: UUID of created record")
+                elif tool.operation == "read":
+                    desc_lines.append("- data: Record data as dict")
+                elif tool.operation == "search":
+                    desc_lines.append("- results: List of matching records")
+                desc_lines.append("- display_markdown: User-friendly formatted output")
+                desc_lines.append("")
+                
+                desc_lines.append("IMPORTANT: Always provide all required parameters. Do not call with empty values.")
+                
+                return "\\n    ".join(desc_lines)
 
             model_imports = ", ".join(sorted({e.name for e in app_spec.entities}))
             lines = [
@@ -337,12 +442,17 @@ Description: {app_spec.description}
                 tool_name = tool.name
                 secrets = tool.secrets or []
                 secrets_arg = f", secrets={secrets}" if secrets else ""
+                
+                # Get entity for parameter info
+                entity = next((e for e in app_spec.entities if e.name == model_name), None)
+                
+                # Build comprehensive description
+                comprehensive_desc = _build_comprehensive_description(tool, entity)
 
                 params = []
                 if tool.operation in {"read", "update", "delete"}:
                     params.append("id: str")
                 if tool.operation in {"create", "update"}:
-                    entity = next((e for e in app_spec.entities if e.name == model_name), None)
                     if entity:
                         required_params = []
                         optional_params = []
@@ -360,7 +470,7 @@ Description: {app_spec.description}
                 lines.extend([
                     "@agent_tool(",
                     f"    name=\"{tool_name}\",",
-                    f"    description=\"{tool.description}\",",
+                    f"    description=\"\"\"{ comprehensive_desc}\"\"\",",
                     "    log_response_to_orm=True,",
                     f"    category=\"{app_spec.name}\"{secrets_arg}",
                     ")",

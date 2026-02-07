@@ -4,6 +4,7 @@ Core scheduled tasks for cron jobs.
 These functions are called by django-crontab based on CRONJOBS in settings.py.
 """
 import logging
+import asyncio
 from django.utils import timezone
 from datetime import timedelta
 
@@ -52,3 +53,36 @@ def generate_audit_summary():
     
     summary = {item['status']: item['count'] for item in stats}
     logger.info(f"Daily audit summary: {summary}")
+
+
+def check_due_reminders():
+    """
+    Check for due task reminders and send notifications.
+    Runs every minute.
+    """
+    from core.services.reminder_service import reminder_service
+    
+    try:
+        # Run async function in sync context
+        count = asyncio.run(reminder_service.check_and_notify_due_tasks())
+        if count > 0:
+            logger.info(f"Processed {count} due reminders")
+    except Exception as e:
+        logger.error(f"Failed to check due reminders: {e}")
+
+
+def execute_scheduled_tasks():
+    """
+    Execute scheduled cron jobs.
+    Runs every minute.
+    """
+    from core.services.reminder_service import reminder_service
+    
+    try:
+        # Run async function in sync context
+        count = asyncio.run(reminder_service.execute_scheduled_tasks())
+        if count > 0:
+            logger.info(f"Executed {count} scheduled tasks")
+    except Exception as e:
+        logger.error(f"Failed to execute scheduled tasks: {e}")
+

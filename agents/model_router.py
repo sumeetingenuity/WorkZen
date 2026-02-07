@@ -83,14 +83,17 @@ class ModelRouter:
         messages: list[dict],
         response_model=None,
         max_tokens: int = 4096,
-        agent_name: Optional[str] = None
+        agent_name: Optional[str] = None,
+        tools: Optional[list] = None,
+        tool_choice: Optional[str] = "auto"
     ):
         """
         Route completion request to appropriate model.
         Automatic validation retries enabled for structured outputs.
+        Supports function calling via tools parameter.
         """
         try:
-            return await self._execute_complete(task_type, messages, response_model, max_tokens, agent_name)
+            return await self._execute_complete(task_type, messages, response_model, max_tokens, agent_name, tools, tool_choice)
         except Exception as e:
             logger.error(f"Final model completion failure: {e}")
             raise e
@@ -102,7 +105,9 @@ class ModelRouter:
         messages: list[dict],
         response_model=None,
         max_tokens: int = 4096,
-        agent_name: Optional[str] = None
+        agent_name: Optional[str] = None,
+        tools: Optional[list] = None,
+        tool_choice: Optional[str] = "auto"
     ):
         try:
             from litellm import acompletion
@@ -140,11 +145,19 @@ class ModelRouter:
                         )
                     raise e
             
-            return await acompletion(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens
-            )
+            # Build kwargs for acompletion
+            completion_kwargs = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens
+            }
+            
+            # Add tools if provided (for function calling)
+            if tools:
+                completion_kwargs["tools"] = tools
+                completion_kwargs["tool_choice"] = tool_choice
+            
+            return await acompletion(**completion_kwargs)
             
         except ImportError:
             logger.error("litellm not installed")

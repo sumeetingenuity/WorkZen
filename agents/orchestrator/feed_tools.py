@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
     description="Subscribe to a topic or URL for proactive monitoring and alerts.",
     category="system"
 )
-async def subscribe_to_intelligence_feed(topic: str, frequency: str = "daily", _user_id: str = None):
+async def subscribe_to_intelligence_feed(topic: str, frequency: str = "daily", _user_id: str = None, _session_id: str = None):
     """Subscribes to an intelligence feed."""
     feed = await intelligence_feed_service.subscribe(_user_id, topic, frequency)
     return {
@@ -28,7 +28,7 @@ async def subscribe_to_intelligence_feed(topic: str, frequency: str = "daily", _
     description="List all active intelligence feeds for the current user.",
     category="system"
 )
-async def list_intelligence_feeds(_user_id: str = None):
+async def list_intelligence_feeds(_user_id: str = None, _session_id: str = None):
     """Lists intelligence feeds."""
     feeds = []
     async for f in IntelligenceFeed.objects.filter(user_id=_user_id, is_active=True):
@@ -45,7 +45,7 @@ async def list_intelligence_feeds(_user_id: str = None):
     description="Deactivate an intelligence feed.",
     category="system"
 )
-async def unsubscribe_from_feed(feed_id: str, _user_id: str = None):
+async def unsubscribe_from_feed(feed_id: str, _user_id: str = None, _session_id: str = None):
     """Unsubscribes from a feed."""
     try:
         feed = await IntelligenceFeed.objects.aget(id=feed_id, user_id=_user_id)

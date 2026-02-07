@@ -9,7 +9,7 @@ from core.services.task_engine import TaskPlanner, TaskExecutor
     description="Break down a complex objective into a parallelized execution plan (DAG). Returns a plan_id (list of task IDs).",
     category="planning"
 )
-async def create_execution_plan(objective: str, _user_id: str = None) -> dict:
+async def create_execution_plan(objective: str, _user_id: str = None, _session_id: str = None) -> dict:
     """Generates a plan for the objective."""
     task_ids = await TaskPlanner.plan_objective(objective, _user_id)
     
@@ -25,7 +25,7 @@ async def create_execution_plan(objective: str, _user_id: str = None) -> dict:
     description="Execute a previously created plan (DAG). Runs tasks in parallel where possible.",
     category="planning"
 )
-async def execute_plan(plan_id: str, _user_id: str = None) -> dict:
+async def execute_plan(plan_id: str, _user_id: str = None, _session_id: str = None) -> dict:
     """Executes the plan."""
     task_ids = plan_id.split(",")
     executor = TaskExecutor(user_id=_user_id)

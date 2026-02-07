@@ -18,7 +18,8 @@ async def link_knowledge_nodes(
     target_id: str,
     target_type: str,
     relation: str = "related_to",
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ):
     """Creates a link in the knowledge graph."""
     rel = await knowledge_graph_service.link(
@@ -41,7 +42,7 @@ async def link_knowledge_nodes(
     description="Find all relations for a specific node in the knowledge graph.",
     category="system"
 )
-async def query_knowledge_graph(node_id: str, _user_id: str = None):
+async def query_knowledge_graph(node_id: str, _user_id: str = None, _session_id: str = None):
     """Queries the knowledge graph for relations."""
     relations = await knowledge_graph_service.get_relations(_user_id, node_id)
     return {"node_id": node_id, "relations": relations}

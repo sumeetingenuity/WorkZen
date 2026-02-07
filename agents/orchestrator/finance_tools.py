@@ -21,7 +21,8 @@ async def log_transaction(
     category: str,
     currency: str = "USD",
     project: Optional[str] = None,
-    _user_id: str = None
+    _user_id: str = None,
+    _session_id: str = None
 ):
     """Records a transaction in the ledger."""
     entry = await FinancialEntry.objects.acreate(
@@ -46,7 +47,7 @@ async def log_transaction(
     description="Get a summary of finances for a specific category or project.",
     category="productivity"
 )
-async def get_financial_report(category: Optional[str] = None, project: Optional[str] = None, _user_id: str = None):
+async def get_financial_report(category: Optional[str] = None, project: Optional[str] = None, _user_id: str = None, _session_id: str = None):
     """Generates a simple financial summary."""
     qs = FinancialEntry.objects.filter(user_id=_user_id)
     if category:
