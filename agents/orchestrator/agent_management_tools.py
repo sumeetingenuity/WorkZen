@@ -5,6 +5,7 @@ Allows the orchestrator to create and configure custom agents, skills, and plugi
 """
 from typing import List, Optional, Dict, Any
 from core.decorators import agent_tool
+from core.services.secrets import SecretEngine
 from core.models import CustomAgent, AgentSkill, AgentPlugin
 from asgiref.sync import sync_to_async
 
@@ -55,20 +56,12 @@ async def create_custom_agent(
 @agent_tool(
     name="run_opencode_command",
     description="Run an autonomous coding task using the OpenCode CLI.",
-    category="coding",
-    secrets=["OPENCODE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "TOGETHER_API_KEY", "LITELLM_LOCAL_BASE_URL"]
+    category="coding"
 )
 async def run_opencode_command(
     instruction: str, 
     model: Optional[str] = None, 
-    provider: Optional[str] = None,
-    _secret_OPENCODE_API_KEY: str = None,
-    _secret_OPENAI_API_KEY: str = None,
-    _secret_ANTHROPIC_API_KEY: str = None,
-    _secret_GEMINI_API_KEY: str = None,
-    _secret_OPENROUTER_API_KEY: str = None,
-    _secret_TOGETHER_API_KEY: str = None,
-    _secret_LITELLM_LOCAL_BASE_URL: str = None
+    provider: Optional[str] = None
 ) -> dict:
     """
     Run an autonomous coding task using the OpenCode CLI.
@@ -87,6 +80,22 @@ async def run_opencode_command(
     # Use provided values, fall back to vault/env settings
     selected_provider = provider or vault_provider
     selected_model = model or vault_model
+
+    secret_engine = SecretEngine()
+    provider_requirements = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "together_ai": "TOGETHER_API_KEY",
+        "local": "LITELLM_LOCAL_BASE_URL",
+    }
+    required_env = provider_requirements.get(selected_provider)
+    required_value = None
+    if required_env:
+        required_value = await secret_engine.get(required_env)
+        if not required_value:
+            return {"status": "error", "error": f"Missing required environment variable: {required_env}"}
 
     def _strip_provider_prefix(model_id: str) -> str:
         for prefix in ("openrouter/", "together_ai/", "together/"):
@@ -111,6 +120,9 @@ async def run_opencode_command(
     
     # Add provider configurations using env var substitution format
     # This allows OpenCode to load secrets securely from the vault
+    openrouter_api_key = required_value if selected_provider == "openrouter" else os.environ.get("OPENROUTER_API_KEY")
+    together_api_key = required_value if selected_provider == "together_ai" else os.environ.get("TOGETHER_API_KEY")
+
     provider_configs = {
         'anthropic': {
             'anthropic': {
@@ -133,7 +145,7 @@ async def run_opencode_command(
                 'name': 'OpenRouter (OpenAI Compatible)',
                 'options': {
                     'baseURL': 'https://openrouter.ai/api/v1',
-                    'apiKey': _secret_OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY"),
+                    'apiKey': openrouter_api_key,
                 },
                 'models': {
                     model_name: {
@@ -148,7 +160,7 @@ async def run_opencode_command(
                 'name': 'Together AI (OpenAI Compatible)',
                 'options': {
                     'baseURL': 'https://api.together.xyz/v1',
-                    'apiKey': _secret_TOGETHER_API_KEY or os.environ.get("TOGETHER_API_KEY")
+                    'apiKey': together_api_key
                 },
                 'models': {
                     model_name: {
@@ -167,22 +179,11 @@ async def run_opencode_command(
     if selected_provider in provider_configs:
         opencode_config["provider"] = provider_configs[selected_provider]
     
-    # Set environment variables from secrets (these will be substituted by OpenCode)
     env = os.environ.copy()
-    
-    # Inject all potential API keys into environment for OpenCode to use
-    if _secret_ANTHROPIC_API_KEY:
-        env["ANTHROPIC_API_KEY"] = _secret_ANTHROPIC_API_KEY
-    if _secret_OPENAI_API_KEY:
-        env["OPENAI_API_KEY"] = _secret_OPENAI_API_KEY
-    if _secret_GEMINI_API_KEY:
-        env["GEMINI_API_KEY"] = _secret_GEMINI_API_KEY
-    if _secret_OPENROUTER_API_KEY:
-        env["OPENROUTER_API_KEY"] = _secret_OPENROUTER_API_KEY
-    if _secret_TOGETHER_API_KEY:
-        env["TOGETHER_API_KEY"] = _secret_TOGETHER_API_KEY
-    if _secret_LITELLM_LOCAL_BASE_URL:
-        env["LITELLM_LOCAL_BASE_URL"] = _secret_LITELLM_LOCAL_BASE_URL
+
+    # Inject provider-required value into environment for OpenCode to use
+    if required_env and required_value:
+        env[required_env] = required_value
 
     # Optional base URLs / headers for OpenAI-compatible providers
     env.setdefault("OPENROUTER_BASE_URL", os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"))
