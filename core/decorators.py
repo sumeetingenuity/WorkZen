@@ -69,6 +69,23 @@ def agent_tool(
         # Extract function signature for auto-schema generation
         sig = inspect.signature(func)
         type_hints = get_type_hints(func) if hasattr(func, '__annotations__') else {}
+        has_var_kwargs = any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in sig.parameters.values()
+        )
+        if secrets and not has_var_kwargs:
+            missing_secret_params = [
+                secret_name
+                for secret_name in secrets
+                if f"_secret_{secret_name}" not in sig.parameters
+            ]
+            if missing_secret_params:
+                missing_list = ", ".join(missing_secret_params)
+                raise ValueError(
+                    f"Tool '{name}' declares secrets but is missing required "
+                    f"parameters: {missing_list}. Add _secret_<NAME> args or "
+                    f"accept **kwargs for secret injection."
+                )
         
         # Build input fields for Pydantic model
         input_fields = {}

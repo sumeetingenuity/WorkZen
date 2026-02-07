@@ -500,6 +500,26 @@ Requirements:
 3. Create admin.py with ModelAdmin for each model
 4. Create apps.py with proper AppConfig
 5. Follow Django best practices
+6. SECRETS: Any tool requiring API keys MUST list them in the `secrets` argument of `@agent_tool`.
+7. SECRET ENGINE: Secrets are injected at runtime by SecretEngine; NEVER read `.env` or scan environment files.
+8. RUNTIME SECRETS: Access secrets ONLY via injected `_secret_NAME` parameters (add them to the function signature).
+
+TOOL TEMPLATE (use this pattern for any tool with secrets):
+@agent_tool(
+    name="tool_name",
+    description="What the tool does",
+    secrets=["PROVIDER_API_KEY"],
+    log_response_to_orm=True,
+    category="{app_name}"
+)
+async def tool_name(
+    required_arg: str,
+    optional_arg: str = "default",
+    _secret_PROVIDER_API_KEY: str = None
+) -> dict:
+    # Use the injected _secret_PROVIDER_API_KEY directly.
+    # Do not read from .env or os.environ here.
+    ...
 
 Import the @agent_tool decorator from core.decorators:
 from core.decorators import agent_tool

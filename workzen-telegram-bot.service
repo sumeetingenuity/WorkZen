@@ -1,0 +1,26 @@
+[Unit]
+Description=WorkZen Telegram Bot
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/workzen/WorkZen
+
+Environment="PATH=/home/ubuntu/apps/workzen/WorkZen/venv/bin"
+Environment="PYTHONPATH=/home/ubuntu/apps/workzen/WorkZen"
+Environment="DJANGO_SETTINGS_MODULE=secureassist.settings"
+Environment="PYTHONUNBUFFERED=1"
+
+ExecStart=/home/ubuntu/apps/workzen/WorkZen/venv/bin/python /home/ubuntu/apps/workzen/WorkZen/manage.py run_bot
+
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=append:/home/ubuntu/apps/workzen/WorkZen/logs/telegram_bot.log
+StandardError=append:/home/ubuntu/apps/workzen/WorkZen/logs/telegram_bot_error.log
+
+[Install]
+WantedBy=multi-user.target

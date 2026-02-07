@@ -195,9 +195,10 @@ Description: {app_spec.description}
 2. ALL tools MUST use `@agent_tool(..., log_response_to_orm=True)`.
 3. NO tool should return large data directly to the LLM. 
 4. SECRETS: Any tool requiring API keys MUST list them in the `secrets` argument of `@agent_tool`.
-5. RUNTIME SECRETS: Access secrets ONLY via injected `_secret_NAME` variables. 
-6. NO ENV SCANNING: DO NOT search for or read `.env` files. Sensitive keys are stored in a secure OUT-OF-WORKSPACE vault inaccessible to you.
-7. NO LLM INGESTION: Tool results are for the USER, not for the LLM.
+5. SECRET ENGINE: All secrets are injected at runtime by SecretEngine; NEVER read env files.
+6. RUNTIME SECRETS: Access secrets ONLY via injected `_secret_NAME` parameters (add them to the function signature).
+7. NO ENV SCANNING: DO NOT search for or read `.env` files. Sensitive keys are stored in a secure OUT-OF-WORKSPACE vault inaccessible to you.
+8. NO LLM INGESTION: Tool results are for the USER, not for the LLM.
 
 === REQUIRED FILES (MUST CREATE ALL) ===
 1. apps.py with AppConfig class name {app_spec.name.title()}Config and name = "apps.{app_spec.name}"

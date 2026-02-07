@@ -16,7 +16,8 @@ async def send_email(
     to: str,
     subject: str,
     body: str,
-    html: bool = False
+    html: bool = False,
+    _secret_EMAIL_HOST_PASSWORD: str = None
 ) -> dict:
     """
     Send an email.

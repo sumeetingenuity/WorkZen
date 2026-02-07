@@ -140,7 +140,12 @@ async def list_calendar(_user_id: str = None) -> dict:
     category="communication",
     secrets=["EMAIL_HOST_USER", "EMAIL_HOST_PASSWORD"]
 )
-async def check_inbox(limit: int = 5, _user_id: str = None) -> dict:
+async def check_inbox(
+    limit: int = 5,
+    _user_id: str = None,
+    _secret_EMAIL_HOST_USER: str = None,
+    _secret_EMAIL_HOST_PASSWORD: str = None
+) -> dict:
     """
     Checks the inbox for recent activity.
     In this version, we provide a placeholder that interacts with the user's
