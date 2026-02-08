@@ -7,7 +7,7 @@ and manages the complete app generation workflow.
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel, Field
 from django.conf import settings
 from agents.schemas import AppSpec, DomainSpec
